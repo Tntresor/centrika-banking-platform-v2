@@ -43,13 +43,23 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health check endpoint
+// Health check endpoints
 app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     version: process.env.npm_package_version || '1.0.0',
+  });
+});
+
+// Root endpoint for deployment health checks
+app.get('/', (req, res) => {
+  res.json({
+    service: 'Centrika Neobank API',
+    status: 'running',
+    version: '1.0.0',
+    timestamp: new Date().toISOString(),
   });
 });
 

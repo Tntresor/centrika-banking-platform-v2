@@ -1,20 +1,21 @@
 #!/bin/bash
 
-# Production start script for Centrika Neobank Backend
-echo "Starting Centrika Neobank Backend Server..."
+# Optimized deployment script for Replit Cloud Run
+set -e
 
-# Set production environment
-export NODE_ENV=production
+echo "Centrika Neobank Backend - Starting deployment"
 
 # Navigate to server directory
 cd server
 
-# Install production dependencies if needed
-if [ ! -d "node_modules" ]; then
-    echo "Installing dependencies..."
-    npm ci --only=production
-fi
+# Install only production dependencies (faster deployment)
+echo "Installing production dependencies..."
+npm ci --only=production --silent
+
+# Set production environment
+export NODE_ENV=production
+export PORT=8000
 
 # Start the server
-echo "Starting server on port ${PORT:-8000}..."
+echo "Starting server on port 8000..."
 exec node index.js

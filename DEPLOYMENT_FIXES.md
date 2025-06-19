@@ -36,18 +36,49 @@ The backend server is:
 - ✅ Running on port 8000
 - ✅ Listening on 0.0.0.0 (external access ready)
 - ✅ Health check responding at `/health`
-- ✅ Properly configured for deployment
+- ✅ Properly configure# Deployment Configuration - Fixed
 
-## Deployment Commands
+## Issues Resolved
 
-For Replit Deployments, use any of these approaches:
+✅ **Backend-only deployment**: Removed mobile and backoffice from deployment command
+✅ **Server startup**: Added proper server startup after dependency installation  
+✅ **Health check endpoint**: Added root endpoint (/) for deployment health checks
+✅ **Production environment**: Added NODE_ENV=production configuration
+✅ **Port configuration**: Server properly bound to 0.0.0.0:8000
 
-1. **Simple approach**: `cd server && npm install && node index.js`
-2. **Script approach**: `./run.sh`
-3. **Production approach**: `cd server && npm run start:prod`
+## Deployment Commands (Updated)
+
+### Recommended Deployment Command
+```bash
+cd server && npm ci --only=production && NODE_ENV=production node index.js
+```
+
+### Alternative Scripts
+1. **Optimized script**: `./start.sh`
+2. **Full deployment script**: `./deploy.sh`
+3. **Production mode**: `cd server && npm run start:prod`
+
+## Health Check Endpoints
+
+- **Root endpoint**: `http://0.0.0.0:8000/` (for deployment health checks)
+- **Detailed health**: `http://0.0.0.0:8000/health` (with system info)
 
 ## Port Configuration
 
-- Backend server: Port 8000 (mapped to external port 80)
-- Health check: `http://0.0.0.0:8000/health`
-- All network bindings configured for external access
+- **Backend server**: Port 8000 (mapped to external port 80)
+- **Network binding**: 0.0.0.0 for external access
+- **Health check**: Available on both `/` and `/health` endpoints
+
+## Production Environment Variables
+
+```bash
+NODE_ENV=production
+PORT=8000
+```
+
+## Deployment Process
+
+1. Install only production dependencies (faster)
+2. Set production environment variables
+3. Start backend server with proper health checks
+4. Server responds to deployment health checks on `/`or external access

@@ -65,6 +65,13 @@ A comprehensive mobile neobank application for Rwanda featuring:
 - 2025-06-19: Fixed deployment configuration issues - backend properly configured for external access
 - 2025-06-19: Created Docker configuration and deployment scripts for production deployment
 - 2025-06-19: Server already properly listening on 0.0.0.0:8000 with health check at /health
+- 2025-06-19: DEPLOYMENT FIXES APPLIED - Resolved all deployment issues:
+  - Backend-only deployment configuration (removed mobile/backoffice from deploy command)
+  - Added root endpoint (/) for deployment health checks alongside /health
+  - Fixed dependency corruption and reinstalled clean node_modules
+  - Created optimized deployment scripts (start.sh, deploy.sh) 
+  - Production environment variables properly configured
+  - Server successfully starts and responds to health checks
 
 ## User Preferences
 - Focus on authentic data integration
