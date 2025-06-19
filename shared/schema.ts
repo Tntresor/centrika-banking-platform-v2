@@ -23,6 +23,7 @@ export const wallets = pgTable('wallets', {
   userId: integer('user_id').references(() => users.id).notNull(),
   balance: decimal('balance', { precision: 15, scale: 2 }).default('0.00'),
   currency: varchar('currency', { length: 3 }).default('RWF'),
+  kycLevel: varchar('kyc_level', { length: 20 }).default('basic'), // basic, tier1, tier2, premium
   isActive: boolean('is_active').default(true),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),

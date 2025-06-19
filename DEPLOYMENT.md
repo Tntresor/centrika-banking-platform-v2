@@ -55,11 +55,13 @@ Set these in your deployment environment:
 - `PORT=8000`
 
 ## Deployment Fixes Applied
-1. ✅ **Changed deployment command** - Now installs dependencies AND starts server
-2. ✅ **Backend-only deployment** - Removed mobile/backoffice from deployment
-3. ✅ **Health check endpoints** - Both `/` and `/health` respond properly
-4. ✅ **Production environment** - Proper NODE_ENV and PORT configuration
-5. ✅ **Optimized Docker** - Backend-focused container with health checks
+1. ✅ **Fixed entry point mismatch** - Deploy script now uses `production.js` (not `index.js`)
+2. ✅ **Cross-platform environment variables** - Added `cross-env` for Windows/CI compatibility
+3. ✅ **Backend-only deployment** - Removed mobile/backoffice from deployment
+4. ✅ **Health check endpoints** - Both `/` and `/health` respond properly
+5. ✅ **KYC wallet limits** - Added `kyc_level` field to wallets for transaction limits
+6. ✅ **Production environment** - Proper NODE_ENV and PORT configuration
+7. ✅ **Optimized Docker** - Backend-focused container with health checks
 
 ## Verification
 The server will start on `0.0.0.0:8000` and respond to:

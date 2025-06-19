@@ -20,4 +20,4 @@ npm install --production
 
 # Start the server
 echo "Starting backend server on port 8000..."
-exec npm start
+exec npm run deploy

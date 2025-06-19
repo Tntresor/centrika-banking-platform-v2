@@ -62,15 +62,16 @@ A comprehensive mobile neobank application for Rwanda featuring:
 - 2025-06-19: Implemented cash management with nostro accounts and reconciliation
 - 2025-06-19: Created micro-ledger with double-entry bookkeeping system
 - 2025-06-19: Added 9 new database tables for complete financial operations
-- 2025-06-19: DEPLOYMENT CONFIGURATION COMPLETED - All suggested fixes applied:
-  - Created optimized deployment scripts (start.sh, deploy.sh, Dockerfile)
-  - Backend-only deployment strategy (excludes mobile/backoffice)
+- 2025-06-19: DEPLOYMENT CONFIGURATION COMPLETED - All deployment issues resolved:
+  - Fixed entry point mismatch: deploy script now uses production.js (not index.js)
+  - Added cross-env for cross-platform environment variable compatibility
+  - Backend-only deployment strategy (excludes mobile/backoffice from deployment)
   - Production environment configuration (.env.production)
-  - Updated package.json with deploy script
+  - KYC wallet limits: Added kyc_level field to wallets table for transaction limits
+  - Created KYC limits configuration with BNR Tier II compliance
   - Health check endpoints verified working (/ and /health)
-  - Docker configuration with proper health checks
-  - Server confirmed responding on 0.0.0.0:8000 with proper JSON responses
-  - Deployment ready for Cloud Run with all fixes implemented
+  - Docker configuration with proper health checks and production entry point
+  - Server ready for Cloud Run deployment with all fixes implemented
 
 ## User Preferences
 - Focus on authentic data integration

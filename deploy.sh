@@ -21,4 +21,4 @@ echo "Running database push..."
 npm run db:push || echo "Database push failed, continuing..."
 
 echo "Starting Centrika Neobank API Server..."
-exec node index.js
+exec node production.js
