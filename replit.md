@@ -73,7 +73,10 @@ A comprehensive mobile neobank application for Rwanda featuring:
   - Added Procfile for proper web process configuration
   - Health check endpoints verified working at / and /health
   - Server tested and ready for Cloud Run deployment
-- 2025-06-19: Port configuration updated - Backend moved to port 8002, mobile app on 8081
+- 2025-06-19: Port configuration updated - Backend moved to port 8000 for production deployment
+- 2025-06-19: Vercel deployment configured - Created serverless API structure with /api directory
+- 2025-06-19: External deployment setup - Railway, Vercel, and Docker configurations ready
+- 2025-06-19: Supabase integration - Complete SQL schema for PostgreSQL deployment
 
 ## User Preferences
 - Focus on authentic data integration

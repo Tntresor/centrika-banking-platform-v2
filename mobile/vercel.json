@@ -1,0 +1,24 @@
+{
+  "version": 2,
+  "name": "centrika-mobile",
+  "builds": [
+    {
+      "src": "serve-demo.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "web-demo.html",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/",
+      "dest": "/web-demo.html"
+    },
+    {
+      "src": "/status",
+      "dest": "/serve-demo.js"
+    }
+  ]
+}

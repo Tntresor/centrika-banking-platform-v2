@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "name": "centrika-admin",
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "installCommand": "npm install",
+  "env": {
+    "NODE_ENV": "production"
+  },
+  "build": {
+    "env": {
+      "API_URL": "https://centrika-neobank-api.vercel.app"
+    }
+  }
+}
