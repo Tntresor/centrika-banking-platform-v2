@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "start:prod": "node production.js",
+    "start:prod": "NODE_ENV=production PORT=8000 node production.js",
+    "deploy": "NODE_ENV=production PORT=8000 node index.js",
     "dev": "nodemon index.js",
     "db:push": "drizzle-kit push:pg",
     "db:generate": "drizzle-kit generate:pg",

@@ -1,37 +1,42 @@
-# Node modules
-node_modules/
-*/node_modules/
+# Centrika Neobank - Docker Ignore
+# Exclude unnecessary files from Docker context
 
-# Development files
-.git/
-.gitignore
-README.md
-*.md
-.env.local
-.env.development
-
-# Mobile app (not needed for backend deployment)
+# Frontend applications (not needed for backend deployment)
 mobile/
 backoffice/
 
-# Development scripts
-deploy.sh
-start.sh
+# Development files
+*.md
+.git/
+.gitignore
+.env.local
+.env.development
+
+# Node modules (will be installed in container)
+node_modules/
+*/node_modules/
 
 # Logs
 *.log
 logs/
 
+# Development tools
+.vscode/
+.idea/
+
 # OS files
 .DS_Store
 Thumbs.db
 
-# Editor files
-.vscode/
-.idea/
-*.swp
-*.swo
-
 # Test files
-coverage/
+test/
+tests/
 *.test.js
+*.spec.js
+
+# Coverage reports
+coverage/
+
+# Build artifacts
+dist/
+build/
