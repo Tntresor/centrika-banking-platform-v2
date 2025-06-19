@@ -17,15 +17,15 @@ args = "Install Dependencies"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Backend Server"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
 args = "Admin Back-office"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
 args = "Mobile App"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Backend Server"
 
 [[workflows.workflow]]
 name = "Install Dependencies"
@@ -34,15 +34,6 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd server && npm install && cd ../mobile && npm install && cd ../backoffice && npm install"
-
-[[workflows.workflow]]
-name = "Backend Server"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd server && npm start"
-waitForPort = 8000
 
 [[workflows.workflow]]
 name = "Admin Back-office"
@@ -62,6 +53,15 @@ task = "shell.exec"
 args = "cd mobile && node serve-demo.js"
 waitForPort = 8081
 
+[[workflows.workflow]]
+name = "Backend Server"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd server && npm start"
+waitForPort = 8002
+
 [deployment]
 run = ["sh", "-c", "cd server && npm install && cd ../mobile && npm install && cd ../backoffice && npm install"]
 deploymentTarget = "cloudrun"
@@ -73,6 +73,10 @@ externalPort = 3000
 [[ports]]
 localPort = 8000
 externalPort = 80
+
+[[ports]]
+localPort = 8002
+externalPort = 3001
 
 [[ports]]
 localPort = 8081

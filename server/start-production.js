@@ -7,7 +7,7 @@ console.log('🚀 Centrika Neobank - Production Startup');
 
 // Set critical environment variables
 process.env.NODE_ENV = 'production';
-process.env.PORT = process.env.PORT || '8000';
+process.env.PORT = process.env.PORT || '8002';
 
 console.log(`Environment: ${process.env.NODE_ENV}`);
 console.log(`Port: ${process.env.PORT}`);

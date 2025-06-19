@@ -16,7 +16,7 @@ const adminRoutes = require('./routes/admin-simple');
 const NotificationService = require('./services/NotificationService');
 
 const app = express();
-const PORT = process.env.PORT || 8000;
+const PORT = process.env.PORT || 8002;
 
 // Health check endpoint - must be first, before any middleware
 app.get('/', (req, res) => {
@@ -121,7 +121,7 @@ async function initializeServices() {
 
 // Start server
 app.listen(PORT, '0.0.0.0', async () => {
-  console.log(`Centrika Neobank API Server running on port ${PORT}`);
+  console.log(`Listening on http://localhost:${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`Health check: http://localhost:${PORT}/health`);
   

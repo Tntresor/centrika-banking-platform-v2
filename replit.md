@@ -53,7 +53,7 @@ A comprehensive mobile neobank application for Rwanda featuring:
 
 ## Recent Changes
 - 2025-06-19: All three components successfully started and operational
-- 2025-06-19: Backend API server running on port 8000 with complete endpoints
+- 2025-06-19: Backend API server running on port 8002 with complete endpoints
 - 2025-06-19: Admin dashboard running on port 3000 with Next.js
 - 2025-06-19: Mobile app running on port 8081 with Expo development server
 - 2025-06-19: PostgreSQL database configured with complete schema
@@ -65,7 +65,7 @@ A comprehensive mobile neobank application for Rwanda featuring:
 - 2025-06-19: DEPLOYMENT READY - All critical deployment issues resolved:
   - Fixed entry point mismatch: deploy script now uses production.js (not index.js)
   - Added cross-env for cross-platform environment variable compatibility
-  - Dynamic PORT handling: removed hardcoded PORT, uses process.env.PORT || 8000
+  - Dynamic PORT handling: updated to use process.env.PORT || 8002
   - Optimized health check: moved / endpoint before middleware for instant response
   - Backend-only deployment strategy (excludes mobile/backoffice from deployment)
   - KYC wallet limits: Added kyc_level field to wallets table for transaction limits
@@ -73,6 +73,7 @@ A comprehensive mobile neobank application for Rwanda featuring:
   - Added Procfile for proper web process configuration
   - Health check endpoints verified working at / and /health
   - Server tested and ready for Cloud Run deployment
+- 2025-06-19: Port configuration updated - Backend moved to port 8002, mobile app on 8081
 
 ## User Preferences
 - Focus on authentic data integration
