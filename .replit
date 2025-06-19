@@ -21,11 +21,11 @@ args = "Backend Server"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Mobile App"
+args = "Admin Back-office"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Admin Back-office"
+args = "Mobile App"
 
 [[workflows.workflow]]
 name = "Install Dependencies"
@@ -45,15 +45,6 @@ args = "cd server && npm start"
 waitForPort = 8000
 
 [[workflows.workflow]]
-name = "Mobile App"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd mobile && npm start"
-waitForPort = 19006
-
-[[workflows.workflow]]
 name = "Admin Back-office"
 author = "agent"
 
@@ -61,6 +52,15 @@ author = "agent"
 task = "shell.exec"
 args = "cd backoffice && npm run dev"
 waitForPort = 3000
+
+[[workflows.workflow]]
+name = "Mobile App"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd mobile && npx expo start --port 8081"
+waitForPort = 8081
 
 [deployment]
 run = ["sh", "-c", "cd server && npm install && cd ../mobile && npm install && cd ../backoffice && npm install"]
