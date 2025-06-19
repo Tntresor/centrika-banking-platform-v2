@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Centrika Mobile App - Web Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1A73E8 0%, #4285F4 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .phone-container {
+            width: 375px;
+            height: 667px;
+            background: #000;
+            border-radius: 25px;
+            padding: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+        
+        .screen {
+            width: 100%;
+            height: 100%;
+            background: #fff;
+            border-radius: 15px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .status-bar {
+            height: 44px;
+            background: #1A73E8;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+            color: white;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .app-content {
+            padding: 20px;
+            height: calc(100% - 44px - 80px);
+            overflow-y: auto;
+        }
+        
+        .welcome-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .logo {
+            width: 80px;
+            height: 80px;
+            background: #1A73E8;
+            border-radius: 20px;
+            margin: 0 auto 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 32px;
+            font-weight: bold;
+        }
+        
+        .welcome-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1A73E8;
+            margin-bottom: 8px;
+        }
+        
+        .welcome-subtitle {
+            color: #666;
+            font-size: 16px;
+        }
+        
+        .balance-card {
+            background: linear-gradient(135deg, #1A73E8, #4285F4);
+            border-radius: 15px;
+            padding: 20px;
+            color: white;
+            margin-bottom: 25px;
+        }
+        
+        .balance-label {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+        
+        .balance-amount {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .balance-currency {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        .quick-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        
+        .action-btn {
+            background: #f8f9fa;
+            border: none;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .action-btn:hover {
+            background: #e9ecef;
+        }
+        
+        .action-icon {
+            width: 40px;
+            height: 40px;
+            background: #1A73E8;
+            border-radius: 50%;
+            margin: 0 auto 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
+        }
+        
+        .action-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .transactions-section {
+            margin-bottom: 20px;
+        }
+        
+        .section-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 15px;
+        }
+        
+        .transaction-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .transaction-info {
+            flex: 1;
+        }
+        
+        .transaction-title {
+            font-size: 16px;
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 4px;
+        }
+        
+        .transaction-date {
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .transaction-amount {
+            font-size: 16px;
+            font-weight: bold;
+        }
+        
+        .amount-positive {
+            color: #28a745;
+        }
+        
+        .amount-negative {
+            color: #dc3545;
+        }
+        
+        .bottom-nav {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 80px;
+            background: #fff;
+            border-top: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+        }
+        
+        .nav-item {
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        
+        .nav-item.active {
+            color: #1A73E8;
+        }
+        
+        .nav-icon {
+            width: 24px;
+            height: 24px;
+            margin: 0 auto 4px;
+            background: currentColor;
+            border-radius: 3px;
+        }
+        
+        .demo-info {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+            color: #856404;
+        }
+        
+        .demo-info strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="phone-container">
+        <div class="screen">
+            <div class="status-bar">
+                <span>9:41</span>
+                <span>Centrika</span>
+                <span>100%</span>
+            </div>
+            
+            <div class="app-content">
+                <div class="demo-info">
+                    <strong>Demo Mode</strong>
+                    This is a web preview of the Centrika mobile app. For full functionality, use Expo Go on your mobile device.
+                </div>
+                
+                <div class="welcome-header">
+                    <div class="logo">C</div>
+                    <h1 class="welcome-title">Welcome to Centrika</h1>
+                    <p class="welcome-subtitle">Your digital banking solution</p>
+                </div>
+                
+                <div class="balance-card">
+                    <div class="balance-label">Available Balance</div>
+                    <div class="balance-amount">150,000</div>
+                    <div class="balance-currency">Rwandan Francs (RWF)</div>
+                </div>
+                
+                <div class="quick-actions">
+                    <button class="action-btn">
+                        <div class="action-icon">↗</div>
+                        <div class="action-label">Send Money</div>
+                    </button>
+                    <button class="action-btn">
+                        <div class="action-icon">↓</div>
+                        <div class="action-label">Deposit</div>
+                    </button>
+                    <button class="action-btn">
+                        <div class="action-icon">📱</div>
+                        <div class="action-label">Pay Bills</div>
+                    </button>
+                    <button class="action-btn">
+                        <div class="action-icon">💳</div>
+                        <div class="action-label">My Cards</div>
+                    </button>
+                </div>
+                
+                <div class="transactions-section">
+                    <h2 class="section-title">Recent Transactions</h2>
+                    
+                    <div class="transaction-item">
+                        <div class="transaction-info">
+                            <div class="transaction-title">MoMo Deposit</div>
+                            <div class="transaction-date">1 day ago</div>
+                        </div>
+                        <div class="transaction-amount amount-positive">+5,000 RWF</div>
+                    </div>
+                    
+                    <div class="transaction-item">
+                        <div class="transaction-info">
+                            <div class="transaction-title">Transfer to John Doe</div>
+                            <div class="transaction-date">2 days ago</div>
+                        </div>
+                        <div class="transaction-amount amount-negative">-2,500 RWF</div>
+                    </div>
+                    
+                    <div class="transaction-item">
+                        <div class="transaction-info">
+                            <div class="transaction-title">Coffee Shop Payment</div>
+                            <div class="transaction-date">3 days ago</div>
+                        </div>
+                        <div class="transaction-amount amount-negative">-1,200 RWF</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bottom-nav">
+                <div class="nav-item active">
+                    <div class="nav-icon"></div>
+                    Home
+                </div>
+                <div class="nav-item">
+                    <div class="nav-icon"></div>
+                    Transfer
+                </div>
+                <div class="nav-item">
+                    <div class="nav-icon"></div>
+                    Cards
+                </div>
+                <div class="nav-item">
+                    <div class="nav-icon"></div>
+                    Profile
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

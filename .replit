@@ -59,7 +59,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd mobile && npx expo start --port 8081"
+args = "cd mobile && node serve-demo.js"
 waitForPort = 8081
 
 [deployment]
