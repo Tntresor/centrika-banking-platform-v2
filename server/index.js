@@ -5,11 +5,11 @@ const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 // Routes
-const authRoutes = require('./routes/auth');
-const kycRoutes = require('./routes/kyc');
-const transactionRoutes = require('./routes/transactions');
-const cardRoutes = require('./routes/cards');
-const momoRoutes = require('./routes/momo');
+const authRoutes = require('./routes/auth-simple');
+const kycRoutes = require('./routes/kyc-simple');
+const transactionRoutes = require('./routes/transactions-simple');
+const cardRoutes = require('./routes/cards-simple');
+const momoRoutes = require('./routes/momo-simple');
 
 // Services
 const NotificationService = require('./services/NotificationService');

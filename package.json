@@ -11,6 +11,8 @@
   "license": "ISC",
   "dependencies": {
     "@neondatabase/serverless": "^1.0.1",
+    "@types/react": "^19.1.8",
+    "@types/react-native": "^0.72.8",
     "aws-sdk": "^2.1692.0",
     "axios": "^1.10.0",
     "bcryptjs": "^3.0.2",
@@ -18,9 +20,14 @@
     "drizzle-orm": "^0.44.2",
     "express": "^5.1.0",
     "express-rate-limit": "^7.5.0",
+    "express-validator": "^7.2.1",
     "firebase-admin": "^13.4.0",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.1",
+    "react-dom": "^19.1.0",
+    "react-native-web": "^0.20.0",
+    "typescript": "^5.8.3",
     "ws": "^8.18.2"
   }
 }

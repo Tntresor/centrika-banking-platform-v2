@@ -1,4 +1,4 @@
-modules = ["nodejs-20"]
+modules = ["nodejs-20", "postgresql-16"]
 
 [nix]
 channel = "stable-24_05"
@@ -15,6 +15,18 @@ author = "agent"
 task = "workflow.run"
 args = "Install Dependencies"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Backend Server"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Mobile App"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Admin Back-office"
+
 [[workflows.workflow]]
 name = "Install Dependencies"
 author = "agent"
@@ -22,6 +34,33 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd server && npm install && cd ../mobile && npm install && cd ../backoffice && npm install"
+
+[[workflows.workflow]]
+name = "Backend Server"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd server && npm start"
+waitForPort = 8000
+
+[[workflows.workflow]]
+name = "Mobile App"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd mobile && npm start"
+waitForPort = 19006
+
+[[workflows.workflow]]
+name = "Admin Back-office"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd backoffice && npm run dev"
+waitForPort = 3000
 
 [deployment]
 run = ["sh", "-c", "cd server && npm install && cd ../mobile && npm install && cd ../backoffice && npm install"]
