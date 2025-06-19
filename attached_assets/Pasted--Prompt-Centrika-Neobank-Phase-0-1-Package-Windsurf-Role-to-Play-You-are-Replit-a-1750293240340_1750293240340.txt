@@ -1,0 +1,87 @@
+# 📄 Prompt – Centrika Neobank • Phase 0 & 1 Package (Windsurf)
+
+🎭 Role to Play  
+You are Replit, an AI product team that will prototype and deliver Phase 0 (Clickable Demo) and Phase 1 (MVP Sandbox) for Centrika Neobank Rwanda.
+Act as a cross-functional squad (Product, Design, Mobile, Backend, DevOps, QA).
+
+————————
+
+🌍 Project Context (Snapshot)
+* Client: Centrika – https://www.centrika.rw
+* Vision: First 100 % mobile neobank in Rwanda; target users = urban residents & micro-merchants, remittance senders/receivers.
+* Backend: brand-new micro-ledger (suggest the best stack).
+* Card rails: UnionPay virtual cards in Phase 1; physical cards later.
+* Remittances: TapTap Send, Western Union, MoneyGram, Ria (stubbed until Phase 3).
+* Constraints: code & docs in English, FE bilingual (FR/EN), OPEX ≤ 5 k USD/mo, BNR Tier II limits (single txn 1 M RWF, daily 1 M RWF, balance 2 M RWF).
+
+————————
+
+🔐 Temporary Internal Self-KYC (replacing IDwise for Ph 0-1)  
+Component	Approach	Notes / Risk
+Doc capture & OCR	In-app camera with edge-detector	
+Face capture & liveness	Client-side passive liveness using Google ML Kit Face Detection (or any other alternative) ➜ ensure user blinks / turns head.	Passive spoof checks only (no depth); acceptable for sandbox.
+Face match	Serverless Lambda calls AWS Rekognition CompareFaces (≥ 85 % similarity) between selfie & ID photo. Any other technical alternative is acceptabel	Meets GDPR style data-in-transit; delete images after verification to reduce PII retention.
+Manual fallback	Back-office web console allows Ops agent to view captured images & approve/deny.	Covers edge cases, ensures compliance.
+Storage	Encrypted S3 bucket (SSE-KMS) with 24 h lifecycle rule → auto purge to reduce PII.	Aligns with “store biometrics later” stance.
+KPIs: pass rate > 80 %, avg KYC time < 60 s, manual review SLA < 4 h.
+
+————————
+
+📦 Deliverables You Must Produce
+
+1️⃣ Phase 0 – Clickable Demo (≤ 24 h)
+* Mobile Prototype – React Native + Expo, FR/EN toggle, mocked screens: On-boarding, Dashboard, MoMo Deposit, P2P, QR Pay, Settings.
+* Local Micro-Ledger – JSON store inside the app for balance updates or any alternative viable solution.
+* QR Scan Demo – hard-coded merchant QR; success toast.
+* Design Tokens – colours & typography derived from centrika.rw (export → Figma).
+* Demo Script – step-by-step flow for user testing (PDF or MD).
+
+2️⃣ Phase 1 – MVP Sandbox (1 working day)
+* Self-KYC Internal Flow (Textract + ML Kit + Rekognition) – fully integrated or any valid alternative; fallback manual review screen in back-office.
+* MoMo Rwanda Deposit & Cash-out – Collection API + Disbursement API stubs; success screen updates micro-ledger v0 (double-entry, J+1 batch to S3).
+* P2P Intra-ledger Transfer – instant ledger movement between two test users.
+* UnionPay Virtual Card (Test BIN) – generate virtual PAN & CVV from stub service; store tokenised card in app.
+* QR Scan-to-Pay (EMVCo derivative) – dynamic parsing, amount confirmation, ledger post.
+* Back-office v0 – Web (Next.js) console:
+    * User search, KYC image viewer, Approve / Reject buttons
+    * Simple metrics panel: daily sign-ups, txn count, ledger balance
+* Notifications – Push via FCM (simulator)
+* BNR J+1 Report Job – Lambda cron: query ledger, write CSV to a dedicated folder with the structure YYYYMMDD.csv`.
+* Infrastructure – Choose the best temporary solution
+* CI/CD – GitHub Actions: lint, test, Expo build,
+* Test Assets – Gherkin scenarios (≥ 30) for on-boarding, deposit, P2P, QR Pay; Jest detox smoke tests.
+* README (MD) – local run instructions, env vars, cloud cost sheet (expected ≤ 5 k USD/mo).
+
+Back-office v0  (Phase 1)
+
+Area	Required Functionality	Tech Hints / Components	Acceptance Criteria
+Auth	Admin login (email + password) ; role = ops_agent	Next.js + Amplify Auth or any alternative	Only users in ops_agent group can access console
+User Search	Filter by Name, Phone, Status (Pending/Approved/Rejected); click row to open detail pane	Next.js DataGrid; REST GET /users?query=
+or any valid alternative	Search latency < 1 s
+KYC Review	Display captured ID images + selfie; side-by-side comparison; buttons Approve / Reject	S3 pre-signed URLs for images; call PUT /kyc/{id} - or suggest your best alternaive	Decision persists & updates user status instantly
+Manual Ledger Adjustment	Form to credit/debit a wallet (sandbox only) with reason code	Protected route /ledger/manual; writes to ledger table	Adjustment logged in immutable audit trail
+Metrics Panel	Cards showing: • Daily sign-ups • Successful KYC % • Txn count • Ledger balance	Pull metrics from /stats/today	Dashboard loads < 2 s
+Audit Log	Read-only table of actions (KYC decisions, ledger adjustments)	Fetch /audit?since=; infinite scroll	Events immutable & timestamped
+Accessibility	Keyboard navigation, aria-labels, contrast ≥ 4.5:1	Chakra UI + WCAG checks	Pa11y report passes
+————————
+🚦 Acceptance Criteria
+1. Create account via self-KYC in < 3 min using only camera & ID.
+2. Simulated MoMo deposit reflected in ledger & dashboard instantly.
+3. P2P transfer succeeds between sandbox users with push receipt.
+4. QR payment flow completes with ledger post & SMS confirmation.
+5. Back-office agent can approve pending KYC and see metrics.
+6. BNR J+1 CSV generated at 09:00 following simulated day-close.
+7. Automated tests pass in CI; coverage ≥ 70 % (Phase 1 goal).
+
+————————
+
+🗣️ Communication & Handover
+* Use GitHub Issues for daily progress.
+* Post an end-of-day summary (max 5 bullets).
+* Await explicit approval from Centrika Tech Lead before merging Phase 1 to main.
+
+————————
+
+✅ Kick-off Signal
+When you (Dev squad) fully understand, respond only with a checklist of your initial questions or with “READY FOR BUILD” if no further clarifications are needed.
+No development should start until Centrika answers the questions and signs off the checklist.
