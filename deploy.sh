@@ -1,24 +1,23 @@
 #!/bin/bash
 
-# Centrika Neobank - Cloud Run Deployment Script
-# Optimized for backend-only deployment
+# Centrika Neobank - Production Deployment Script
+# This script handles the complete deployment process
 
-set -e
+set -e  # Exit on any error
 
-echo "=== Centrika Neobank - Cloud Run Deployment ==="
-
-# Set production environment variables
-export NODE_ENV=production
-# PORT will be provided by the deployment platform
+echo "🚀 Starting Centrika Neobank deployment..."
 
 # Navigate to server directory
 cd server
 
-echo "Installing production dependencies..."
-npm ci --only=production
+# Install dependencies
+echo "📦 Installing dependencies..."
+npm install --production
 
-echo "Running database push..."
-npm run db:push || echo "Database push failed, continuing..."
+# Set environment variables
+export NODE_ENV=production
+export PORT=${PORT:-8000}
 
-echo "Starting Centrika Neobank API Server..."
-exec node production.js
+# Start the server
+echo "🌟 Starting production server on port $PORT..."
+npm run deploy

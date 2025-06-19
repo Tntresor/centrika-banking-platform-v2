@@ -9,6 +9,11 @@ const os = require('os');
 // Set production environment
 process.env.NODE_ENV = 'production';
 
+// Ensure PORT is properly set for deployment
+if (!process.env.PORT) {
+  process.env.PORT = '8000';
+}
+
 // Handle uncaught exceptions
 process.on('uncaughtException', (err) => {
   console.error('Uncaught Exception:', err);

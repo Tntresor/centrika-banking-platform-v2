@@ -1,1 +1,1 @@
-web: npm run deploy
+web: cd server && npm install && NODE_ENV=production PORT=${PORT:-8000} npm run deploy
