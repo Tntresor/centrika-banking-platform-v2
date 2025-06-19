@@ -1,0 +1,37 @@
+# Node modules
+node_modules/
+*/node_modules/
+
+# Development files
+.git/
+.gitignore
+README.md
+*.md
+.env.local
+.env.development
+
+# Mobile app (not needed for backend deployment)
+mobile/
+backoffice/
+
+# Development scripts
+deploy.sh
+start.sh
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test files
+coverage/
+*.test.js
