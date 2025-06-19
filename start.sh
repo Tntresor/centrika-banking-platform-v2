@@ -9,7 +9,7 @@ echo "Starting Centrika Neobank deployment..."
 
 # Set production environment
 export NODE_ENV=production
-export PORT=8000
+# PORT will be provided by the deployment platform
 
 # Change to server directory
 cd server

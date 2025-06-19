@@ -9,7 +9,7 @@ echo "=== Centrika Neobank - Cloud Run Deployment ==="
 
 # Set production environment variables
 export NODE_ENV=production
-export PORT=8000
+# PORT will be provided by the deployment platform
 
 # Navigate to server directory
 cd server

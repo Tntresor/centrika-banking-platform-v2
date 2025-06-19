@@ -18,6 +18,25 @@ const NotificationService = require('./services/NotificationService');
 const app = express();
 const PORT = process.env.PORT || 8000;
 
+// Health check endpoint - must be first, before any middleware
+app.get('/', (req, res) => {
+  res.json({
+    service: 'Centrika Neobank API',
+    status: 'running',
+    version: '1.0.0',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    version: process.env.npm_package_version || '1.0.0',
+  });
+});
+
 // Security middleware
 app.use(helmet());
 app.use(cors({
@@ -43,25 +62,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health check endpoints
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    version: process.env.npm_package_version || '1.0.0',
-  });
-});
 
-// Root endpoint for deployment health checks
-app.get('/', (req, res) => {
-  res.json({
-    service: 'Centrika Neobank API',
-    status: 'running',
-    version: '1.0.0',
-    timestamp: new Date().toISOString(),
-  });
-});
 
 // API routes
 app.use('/api/auth', authRoutes);

@@ -57,11 +57,12 @@ Set these in your deployment environment:
 ## Deployment Fixes Applied
 1. ✅ **Fixed entry point mismatch** - Deploy script now uses `production.js` (not `index.js`)
 2. ✅ **Cross-platform environment variables** - Added `cross-env` for Windows/CI compatibility
-3. ✅ **Backend-only deployment** - Removed mobile/backoffice from deployment
-4. ✅ **Health check endpoints** - Both `/` and `/health` respond properly
-5. ✅ **KYC wallet limits** - Added `kyc_level` field to wallets for transaction limits
-6. ✅ **Production environment** - Proper NODE_ENV and PORT configuration
-7. ✅ **Optimized Docker** - Backend-focused container with health checks
+3. ✅ **Dynamic PORT handling** - Removed hardcoded PORT, uses `process.env.PORT || 8000`
+4. ✅ **Optimized health check** - Moved `/` endpoint before middleware for fast response
+5. ✅ **Backend-only deployment** - Removed mobile/backoffice from deployment
+6. ✅ **KYC wallet limits** - Added `kyc_level` field to wallets for transaction limits
+7. ✅ **Procfile added** - Web process: `npm run deploy`
+8. ✅ **Production environment** - Proper NODE_ENV configuration without hardcoded PORT
 
 ## Verification
 The server will start on `0.0.0.0:8000` and respond to:
