@@ -16,13 +16,17 @@ export default function App() {
   useEffect(() => {
     async function prepare() {
       try {
-        // Pre-load fonts
-        await Font.loadAsync({
-          'Inter-Regular': require('./assets/fonts/Inter-Regular.ttf'),
-          'Inter-Medium': require('./assets/fonts/Inter-Medium.ttf'),
-          'Inter-SemiBold': require('./assets/fonts/Inter-SemiBold.ttf'),
-          'Inter-Bold': require('./assets/fonts/Inter-Bold.ttf'),
-        });
+        // Pre-load fonts (skip if files don't exist)
+        try {
+          await Font.loadAsync({
+            'Inter-Regular': require('./assets/fonts/Inter-Regular.ttf'),
+            'Inter-Medium': require('./assets/fonts/Inter-Medium.ttf'),
+            'Inter-SemiBold': require('./assets/fonts/Inter-SemiBold.ttf'),
+            'Inter-Bold': require('./assets/fonts/Inter-Bold.ttf'),
+          });
+        } catch (fontError) {
+          console.warn('Font loading skipped:', fontError);
+        }
 
         // Initialize i18n
         await initializeI18n();

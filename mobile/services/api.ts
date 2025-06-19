@@ -12,6 +12,17 @@ import type {
 class APIService {
   private baseURL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000/api';
 
+  constructor() {
+    // Dynamic API URL detection for different environments
+    if (typeof window !== 'undefined' && window.location) {
+      const hostname = window.location.hostname;
+      if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+        // In production, try to use the same domain with port 8000
+        this.baseURL = `${window.location.protocol}//${hostname}:8000/api`;
+      }
+    }
+  }
+
   private async request<T>(
     endpoint: string, 
     options: RequestInit = {}
@@ -19,9 +30,9 @@ class APIService {
     try {
       const token = await storageService.getAuthToken();
       
-      const headers: HeadersInit = {
+      const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        ...options.headers,
+        ...(options.headers as Record<string, string>),
       };
 
       if (token && !endpoint.includes('/auth/')) {
@@ -30,7 +41,7 @@ class APIService {
 
       const response = await fetch(`${this.baseURL}${endpoint}`, {
         ...options,
-        headers,
+        headers: headers as HeadersInit,
       });
 
       const data = await response.json();

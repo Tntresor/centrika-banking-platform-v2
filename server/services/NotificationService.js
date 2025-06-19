@@ -9,12 +9,28 @@ class NotificationService {
   // Initialize Firebase Admin SDK
   async initialize() {
     try {
+      // Check if Firebase environment variables are set
+      const requiredEnvVars = [
+        'FIREBASE_PROJECT_ID',
+        'FIREBASE_PRIVATE_KEY',
+        'FIREBASE_CLIENT_EMAIL'
+      ];
+
+      const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
+      
+      if (missingEnvVars.length > 0) {
+        console.warn('Firebase environment variables missing:', missingEnvVars);
+        console.log('Running in demo mode without push notifications');
+        this.isInitialized = false;
+        return;
+      }
+
       // Initialize Firebase Admin with service account
       const serviceAccount = {
         type: "service_account",
-        project_id: process.env.FIREBASE_PROJECT_ID || "centrika-neobank",
+        project_id: process.env.FIREBASE_PROJECT_ID,
         private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
-        private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+        private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
         client_email: process.env.FIREBASE_CLIENT_EMAIL,
         client_id: process.env.FIREBASE_CLIENT_ID,
         auth_uri: "https://accounts.google.com/o/oauth2/auth",
@@ -35,7 +51,7 @@ class NotificationService {
 
     } catch (error) {
       console.error('Firebase initialization error:', error);
-      // For demo purposes, continue without FCM
+      console.log('Running in demo mode without push notifications');
       this.isInitialized = false;
     }
   }

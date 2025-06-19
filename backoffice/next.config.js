@@ -84,7 +84,6 @@ const nextConfig = {
   
   // Experimental features
   experimental: {
-    serverActions: true,
     typedRoutes: true,
   },
 
