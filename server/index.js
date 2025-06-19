@@ -16,7 +16,7 @@ const adminRoutes = require('./routes/admin-simple');
 const NotificationService = require('./services/NotificationService');
 
 const app = express();
-const PORT = process.env.PORT || 8002;
+const PORT = process.env.PORT || 8000;
 
 // Health check endpoint - must be first, before any middleware
 app.get('/', (req, res) => {
