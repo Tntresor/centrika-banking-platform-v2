@@ -64,6 +64,7 @@ waitForPort = 3000
 
 [deployment]
 run = ["sh", "-c", "cd server && npm install && cd ../mobile && npm install && cd ../backoffice && npm install"]
+deploymentTarget = "cloudrun"
 
 [[ports]]
 localPort = 3000
@@ -72,3 +73,7 @@ externalPort = 3000
 [[ports]]
 localPort = 8000
 externalPort = 80
+
+[[ports]]
+localPort = 8081
+externalPort = 8081
