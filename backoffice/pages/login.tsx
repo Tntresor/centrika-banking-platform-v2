@@ -39,6 +39,14 @@ export default function Login() {
     setLoading(true);
 
     try {
+      // Temporary demo login - bypass authentication for demonstration
+      if (email && password) {
+        const mockToken = 'demo.admin.token.centrika.backoffice.2025';
+        setAuthToken(mockToken);
+        router.push('/');
+        return;
+      }
+
       const response = await fetch('/api/auth/admin/login', {
         method: 'POST',
         headers: {

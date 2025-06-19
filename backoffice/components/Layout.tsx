@@ -35,7 +35,7 @@ import {
   ViewIcon,
   SearchIcon,
   TimeIcon,
-  BarChartIcon,
+  ChatIcon,
 } from '@chakra-ui/icons';
 import { clearAuthToken, isAuthenticated } from '../utils/auth';
 
@@ -57,10 +57,13 @@ export default function Layout({ children }: LayoutProps) {
   };
 
   const navigationItems = [
-    { name: 'Dashboard', href: '/', icon: BarChartIcon },
+    { name: 'Dashboard', href: '/', icon: ChatIcon },
     { name: 'Users', href: '/users', icon: ViewIcon },
     { name: 'KYC Review', href: '/kyc-review', icon: SearchIcon },
-    { name: 'Metrics', href: '/metrics', icon: BarChartIcon },
+    { name: 'Agent Network', href: '/agents', icon: ViewIcon },
+    { name: 'Cash Management', href: '/cash-management', icon: ChatIcon },
+    { name: 'Micro-Ledger', href: '/ledger', icon: SearchIcon },
+    { name: 'Metrics', href: '/metrics', icon: ChatIcon },
     { name: 'Audit Trail', href: '/audit', icon: TimeIcon },
   ];
 

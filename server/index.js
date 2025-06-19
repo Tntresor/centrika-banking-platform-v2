@@ -10,6 +10,7 @@ const kycRoutes = require('./routes/kyc-simple');
 const transactionRoutes = require('./routes/transactions-simple');
 const cardRoutes = require('./routes/cards-simple');
 const momoRoutes = require('./routes/momo-simple');
+const adminRoutes = require('./routes/admin-simple');
 
 // Services
 const NotificationService = require('./services/NotificationService');
@@ -58,6 +59,7 @@ app.use('/api/kyc', kycRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/cards', cardRoutes);
 app.use('/api/momo', momoRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
