@@ -119,11 +119,11 @@ async function initializeServices() {
   }
 }
 
-// Start server
-app.listen(PORT, async () => {
-  console.log(`Listening on http://localhost:${PORT}`);
+// Start server with proper binding for deployment
+app.listen(PORT, '0.0.0.0', async () => {
+  console.log(`Listening on http://0.0.0.0:${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`Health check: http://localhost:${PORT}/health`);
+  console.log(`Health check: http://0.0.0.0:${PORT}/health`);
   
   await initializeServices();
 });
