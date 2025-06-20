@@ -1,0 +1,40 @@
+[06:33:20.957] Running build in Washington, D.C., USA (East) – iad1
+[06:33:20.957] Build machine configuration: 2 cores, 8 GB
+[06:33:21.004] Cloning github.com/Tntresor/XentrikaBank (Branch: main, Commit: 1b83061)
+[06:33:21.014] Skipping build cache, deployment was triggered without cache.
+[06:33:21.639] Cloning completed: 635.000ms
+[06:33:21.920] Running "vercel build"
+[06:33:22.359] Vercel CLI 43.1.0
+[06:33:22.505] WARN! Due to `builds` existing in your configuration file, the Build and Development Settings defined in your Project Settings will not apply. Learn More: https://vercel.link/unused-build-settings
+[06:33:22.969] Warning: Detected "engines": { "node": ">=18.0.0" } in your `package.json` that will automatically upgrade when a new major Node.js Version is released. Learn More: http://vercel.link/node-version
+[06:33:22.976] Installing dependencies...
+[06:33:37.926] npm error code ERESOLVE
+[06:33:37.927] npm error ERESOLVE could not resolve
+[06:33:37.928] npm error
+[06:33:37.928] npm error While resolving: drizzle-orm@0.44.2
+[06:33:37.929] npm error Found: @neondatabase/serverless@0.9.5
+[06:33:37.929] npm error node_modules/@neondatabase/serverless
+[06:33:37.929] npm error   @neondatabase/serverless@"^0.9.0" from the root project
+[06:33:37.930] npm error
+[06:33:37.930] npm error Could not resolve dependency:
+[06:33:37.930] npm error peerOptional @neondatabase/serverless@">=0.10.0" from drizzle-orm@0.44.2
+[06:33:37.930] npm error node_modules/drizzle-orm
+[06:33:37.930] npm error   drizzle-orm@"^0.44.2" from the root project
+[06:33:37.930] npm error
+[06:33:37.930] npm error Conflicting peer dependency: @neondatabase/serverless@1.0.1
+[06:33:37.930] npm error node_modules/@neondatabase/serverless
+[06:33:37.931] npm error   peerOptional @neondatabase/serverless@">=0.10.0" from drizzle-orm@0.44.2
+[06:33:37.931] npm error   node_modules/drizzle-orm
+[06:33:37.931] npm error     drizzle-orm@"^0.44.2" from the root project
+[06:33:37.931] npm error
+[06:33:37.931] npm error Fix the upstream dependency conflict, or retry
+[06:33:37.931] npm error this command with --force or --legacy-peer-deps
+[06:33:37.931] npm error to accept an incorrect (and potentially broken) dependency resolution.
+[06:33:37.931] npm error
+[06:33:37.931] npm error
+[06:33:37.931] npm error For a full report see:
+[06:33:37.932] npm error /vercel/.npm/_logs/2025-06-20T05_33_23_215Z-eresolve-report.txt
+[06:33:37.933] npm error A complete log of this run can be found in: /vercel/.npm/_logs/2025-06-20T05_33_23_215Z-debug-0.log
+[06:33:37.967] Error: Command "npm install" exited with 1
+[06:33:38.156] 
+[06:33:40.932] Exiting build container
