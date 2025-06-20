@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { storage } = require('../storage');
+const { storage } = require('../storage-supabase');
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'centrika_dev_secret_key_2024';

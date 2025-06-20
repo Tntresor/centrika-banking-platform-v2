@@ -1,15 +1,11 @@
-const { Pool, neonConfig } = require('@neondatabase/serverless');
-const { drizzle } = require('drizzle-orm/neon-serverless');
-const { eq, desc, and, gte, lte, like, or } = require('drizzle-orm');
-const ws = require('ws');
-
-neonConfig.webSocketConstructor = ws;
+const { Client } = require('pg');
 
 if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL must be set. Did you forget to provision a database?');
 }
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+// Use standard PostgreSQL client for reliable Supabase connection
+let db;
 
 // Define database schema (simplified for CommonJS)
 const users = {
@@ -87,35 +83,65 @@ const adminUsers = {
 
 class DatabaseStorage {
   constructor() {
-    this.db = drizzle(pool);
+    this.client = new Client({
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+    });
+    this.connected = false;
+  }
+
+  async connect() {
+    if (!this.connected) {
+      await this.client.connect();
+      this.connected = true;
+      console.log('Connected to Supabase database');
+    }
   }
 
   async getUser(id) {
-    const result = await this.db.execute(`SELECT * FROM users WHERE id = $1`, [id]);
-    return result.rows[0] || undefined;
+    await this.connect();
+    try {
+      const result = await this.client.query('SELECT * FROM users WHERE id = $1', [id]);
+      return result.rows[0] || undefined;
+    } catch (error) {
+      console.error('Database error in getUser:', error);
+      return undefined;
+    }
   }
 
   async getUserByPhone(phone) {
-    const result = await this.db.execute(`SELECT * FROM users WHERE phone = $1`, [phone]);
-    return result.rows[0] || undefined;
+    await this.connect();
+    try {
+      const result = await this.client.query('SELECT * FROM users WHERE phone = $1', [phone]);
+      return result.rows[0] || undefined;
+    } catch (error) {
+      console.error('Database error in getUserByPhone:', error);
+      return undefined;
+    }
   }
 
   async createUser(insertUser) {
-    const result = await this.db.execute(
-      `INSERT INTO users (phone, first_name, last_name, email, password_hash, kyc_status, is_active, preferred_language)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [
-        insertUser.phone,
-        insertUser.firstName,
-        insertUser.lastName,
-        insertUser.email,
-        insertUser.passwordHash,
-        insertUser.kycStatus || 'pending',
-        insertUser.isActive !== false,
-        insertUser.preferredLanguage || 'en'
-      ]
-    );
-    return result.rows[0];
+    await this.connect();
+    try {
+      const result = await this.client.query(
+        `INSERT INTO users (phone, first_name, last_name, email, password_hash, kyc_status, is_active, preferred_language)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+        [
+          insertUser.phone,
+          insertUser.firstName,
+          insertUser.lastName,
+          insertUser.email,
+          insertUser.passwordHash,
+          insertUser.kycStatus || 'pending',
+          insertUser.isActive !== false,
+          insertUser.preferredLanguage || 'en'
+        ]
+      );
+      return result.rows[0];
+    } catch (error) {
+      console.error('Database error in createUser:', error);
+      throw error;
+    }
   }
 
   async updateUser(id, updates) {
@@ -144,62 +170,97 @@ class DatabaseStorage {
   }
 
   async getWallet(userId) {
-    const result = await this.db.execute(`SELECT * FROM wallets WHERE user_id = $1`, [userId]);
-    return result.rows[0] || undefined;
+    await this.connect();
+    try {
+      const result = await this.client.query('SELECT * FROM wallets WHERE user_id = $1', [userId]);
+      return result.rows[0] || undefined;
+    } catch (error) {
+      console.error('Database error in getWallet:', error);
+      return undefined;
+    }
   }
 
   async createWallet(insertWallet) {
-    const result = await this.db.execute(
-      `INSERT INTO wallets (user_id, balance, currency, is_active)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-      [
-        insertWallet.userId,
-        insertWallet.balance || '0.00',
-        insertWallet.currency || 'RWF',
-        insertWallet.isActive !== false
-      ]
-    );
-    return result.rows[0];
+    await this.connect();
+    try {
+      const result = await this.client.query(
+        `INSERT INTO wallets (user_id, balance, currency, is_active)
+         VALUES ($1, $2, $3, $4) RETURNING *`,
+        [
+          insertWallet.userId,
+          insertWallet.balance || '0.00',
+          insertWallet.currency || 'RWF',
+          insertWallet.isActive !== false
+        ]
+      );
+      return result.rows[0];
+    } catch (error) {
+      console.error('Database error in createWallet:', error);
+      throw error;
+    }
   }
 
   async updateWalletBalance(walletId, amount) {
-    const result = await this.db.execute(
-      `UPDATE wallets SET balance = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
-      [amount, walletId]
-    );
-    return result.rows[0];
+    await this.connect();
+    try {
+      const result = await this.client.query(
+        'UPDATE wallets SET balance = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
+        [amount, walletId]
+      );
+      return result.rows[0];
+    } catch (error) {
+      console.error('Database error in updateWalletBalance:', error);
+      throw error;
+    }
   }
 
   async createTransaction(insertTransaction) {
-    const result = await this.db.execute(
-      `INSERT INTO transactions (wallet_id, type, amount, currency, status, reference, description, recipient_phone, is_incoming)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [
-        insertTransaction.walletId,
-        insertTransaction.type,
-        insertTransaction.amount,
-        insertTransaction.currency || 'RWF',
-        insertTransaction.status || 'pending',
-        insertTransaction.reference,
-        insertTransaction.description,
-        insertTransaction.recipientPhone,
-        insertTransaction.isIncoming || false
-      ]
-    );
-    return result.rows[0];
+    await this.connect();
+    try {
+      const result = await this.client.query(
+        `INSERT INTO transactions (from_wallet_id, to_wallet_id, amount, currency, type, status, reference, description)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+        [
+          insertTransaction.fromWalletId || null,
+          insertTransaction.toWalletId || null,
+          insertTransaction.amount,
+          insertTransaction.currency || 'RWF',
+          insertTransaction.type,
+          insertTransaction.status || 'pending',
+          insertTransaction.reference,
+          insertTransaction.description
+        ]
+      );
+      return result.rows[0];
+    } catch (error) {
+      console.error('Database error in createTransaction:', error);
+      throw error;
+    }
   }
 
   async getTransactions(walletId, limit = 50) {
-    const result = await this.db.execute(
-      `SELECT * FROM transactions WHERE wallet_id = $1 ORDER BY created_at DESC LIMIT $2`,
-      [walletId, limit]
-    );
-    return result.rows;
+    await this.connect();
+    try {
+      const result = await this.client.query(
+        'SELECT * FROM transactions WHERE from_wallet_id = $1 OR to_wallet_id = $1 ORDER BY created_at DESC LIMIT $2',
+        [walletId, limit]
+      );
+      return result.rows;
+    } catch (error) {
+      console.error('Database error in getTransactions:', error);
+      return [];
+    }
   }
 
   async getTransaction(id) {
-    const result = await this.db.execute(`SELECT * FROM transactions WHERE id = $1`, [id]);
-    return result.rows[0] || undefined;
+    await this.connect();
+    try {
+      const result = await this.client.query('SELECT * FROM transactions WHERE id = $1', [id]);
+      return result.rows[0] || undefined;
+    } catch (error) {
+      console.error('Database error in getTransaction:', error);
+      return undefined;
+    }
   }
 
   async updateTransaction(id, updates) {
