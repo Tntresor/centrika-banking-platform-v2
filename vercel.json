@@ -1,25 +1,24 @@
 {
   "version": 2,
-  "name": "centrika-neobank-api",
+  "name": "centrika-banking-api",
   "builds": [
     {
-      "src": "server/index.js",
+      "src": "deploy-server.js",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "/server/index.js"
+      "dest": "/deploy-server.js"
     }
   ],
   "env": {
     "NODE_ENV": "production"
   },
   "functions": {
-    "server/index.js": {
+    "deploy-server.js": {
       "maxDuration": 60
     }
-  },
-  "installCommand": "cd server && npm install --legacy-peer-deps"
+  }
 }
