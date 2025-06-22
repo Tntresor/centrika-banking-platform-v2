@@ -1,0 +1,260 @@
+# =============================================================================
+
+# CREDIT SERVICE - ENVIRONMENT VARIABLES CONFIGURATION
+
+# =============================================================================
+
+# Copy this file to .env in your project root and update values as needed
+
+# =============================================================================
+
+# APPLICATION SETTINGS
+
+# =============================================================================
+
+NODE_ENV=development
+APP_VERSION=1.0.0
+PORT=3000
+APP_NAME=credit-service
+
+# =============================================================================
+
+# BACK OFFICE API CONFIGURATION
+
+# =============================================================================
+
+# Base URL for the back office configuration API
+
+BACK_OFFICE_API_URL=http://localhost:3001/api
+
+# API key for authenticating with back office
+
+# Generate a secure API key for production
+
+BACK_OFFICE_API_KEY=your-secure-api-key-here
+
+# Request timeout in milliseconds (default: 10 seconds)
+
+BACK_OFFICE_TIMEOUT=10000
+
+# Number of retry attempts for failed requests (default: 3)
+
+BACK_OFFICE_RETRY_ATTEMPTS=3
+
+# Initial delay between retries in milliseconds (default: 1 second)
+
+# Uses exponential backoff: delay * 2^(attempt-1)
+
+BACK_OFFICE_RETRY_DELAY=1000
+
+# =============================================================================
+
+# REAL-TIME UPDATES (OPTIONAL)
+
+# =============================================================================
+
+# WebSocket URL for real-time configuration updates
+
+# Leave empty to disable real-time updates
+
+BACK_OFFICE_WEBSOCKET_URL=ws://localhost:3001/ws
+
+# Authentication token for WebSocket connection
+
+BACK_OFFICE_WS_TOKEN=your-websocket-token-here
+
+# =============================================================================
+
+# CONFIGURATION CACHING
+
+# =============================================================================
+
+# Default cache TTL in milliseconds (default: 5 minutes)
+
+CONFIG_DEFAULT_TTL=300000
+
+# Health check interval in milliseconds (default: 1 minute)
+
+CONFIG_HEALTH_CHECK_INTERVAL=60000
+
+# Maximum cache size (number of cached configurations)
+
+CONFIG_MAX_CACHE_SIZE=100
+
+# =============================================================================
+
+# DATABASE CONFIGURATION
+
+# =============================================================================
+
+# Database connection for local config storage/fallback
+
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=credit_service
+DB_USER=credit_user
+DB_PASSWORD=secure_password
+DB_SSL=false
+
+# Connection pool settings
+
+DB_POOL_MIN=2
+DB_POOL_MAX=10
+DB_POOL_IDLE_TIMEOUT=30000
+
+# =============================================================================
+
+# LOGGING CONFIGURATION
+
+# =============================================================================
+
+# Log level: error, warn, info, debug
+
+LOG_LEVEL=info
+
+# Log format: json, simple
+
+LOG_FORMAT=json
+
+# Enable request logging
+
+LOG_REQUESTS=true
+
+# Log file path (optional, logs to console if not set)
+
+LOG_FILE_PATH=./logs/credit-service.log
+
+# =============================================================================
+
+# SECURITY SETTINGS
+
+# =============================================================================
+
+# JWT secret for API authentication
+
+JWT_SECRET=your-super-secure-jwt-secret-here
+
+# JWT token expiration
+
+JWT_EXPIRES_IN=24h
+
+# CORS allowed origins (comma-separated)
+
+CORS_ORIGINS=http://localhost:3000,http://localhost:3001
+
+# Rate limiting - requests per window
+
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX_REQUESTS=100
+
+# =============================================================================
+
+# REDIS CONFIGURATION (OPTIONAL)
+
+# =============================================================================
+
+# Redis for distributed caching and rate limiting
+
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=
+REDIS_DB=0
+REDIS_TTL=300
+
+# =============================================================================
+
+# MONITORING & METRICS
+
+# =============================================================================
+
+# Enable metrics collection
+
+METRICS_ENABLED=true
+
+# Metrics port
+
+METRICS_PORT=9090
+
+# Health check endpoint path
+
+HEALTH_CHECK_PATH=/health
+
+# =============================================================================
+
+# DEVELOPMENT SETTINGS
+
+# =============================================================================
+
+# Enable debug mode in development
+
+DEBUG=credit-service:*
+
+# Enable hot reloading in development
+
+HOT_RELOAD=true
+
+# Mock back office responses (for development/testing)
+
+MOCK_BACK_OFFICE=false
+
+# =============================================================================
+
+# PRODUCTION OVERRIDES
+
+# =============================================================================
+
+# Uncomment and modify these for production deployment
+
+# NODE_ENV=production
+
+# BACK_OFFICE_API_URL=https://backoffice.yourcompany.com/api
+
+# BACK_OFFICE_WEBSOCKET_URL=wss://backoffice.yourcompany.com/ws
+
+# LOG_LEVEL=warn
+
+# METRICS_ENABLED=true
+
+# DB_SSL=true
+
+# REDIS_HOST=redis.yourcompany.com
+
+# REDIS_PASSWORD=production-redis-password
+
+# =============================================================================
+
+# ENVIRONMENT-SPECIFIC CONFIGURATIONS
+
+# =============================================================================
+
+# STAGING ENVIRONMENT
+
+# NODE_ENV=staging
+
+# BACK_OFFICE_API_URL=https://staging-backoffice.yourcompany.com/api
+
+# LOG_LEVEL=debug
+
+# TESTING ENVIRONMENT
+
+# NODE_ENV=test
+
+# BACK_OFFICE_API_URL=http://localhost:3002/api
+
+# MOCK_BACK_OFFICE=true
+
+# LOG_LEVEL=error
+
+# =============================================================================
+
+# CONTAINER/KUBERNETES OVERRIDES
+
+# =============================================================================
+
+# These can be overridden in container orchestration
+
+# BACK_OFFICE_API_URL=${BACK_OFFICE_SERVICE_URL}/api
+
+# DB_HOST=${DATABASE_SERVICE_HOST}
+
+# REDIS_HOST=${REDIS_SERVICE_HOST}

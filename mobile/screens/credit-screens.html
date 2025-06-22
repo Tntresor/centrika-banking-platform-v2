@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Centrika - Écrans Crédit</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="styles/micro-interactions.css">
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #f8f9fa;
+            overflow-x: hidden;
+        }
+        
+        .mobile-container {
+            max-width: 375px;
+            margin: 0 auto;
+            background: white;
+            min-height: 100vh;
+            position: relative;
+            box-shadow: 0 0 30px rgba(0,0,0,0.1);
+        }
+        
+        .screen {
+            display: none;
+            padding: 20px;
+            min-height: 100vh;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .screen.active {
+            display: block;
+        }
+        
+        .status-bar {
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .credit-score-card {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            border-radius: 20px;
+            padding: 25px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        .score-number {
+            font-size: 48px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        
+        .credit-option {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin: 15px 0;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .credit-option:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+        
+        .credit-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: white;
+            margin-bottom: 15px;
+        }
+        
+        .nano-credit {
+            background: linear-gradient(135deg, #6f42c1, #8b5cf6);
+        }
+        
+        .micro-credit {
+            background: linear-gradient(135deg, #fd7e14, #f59f00);
+        }
+        
+        .form-card {
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            margin: 20px 0;
+        }
+        
+        .limit-indicator {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        
+        .activation-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            margin: 15px 0;
+        }
+        
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+        
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .slider {
+            background-color: #28a745;
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        
+        .repayment-info {
+            background: #e3f2fd;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
+            border-left: 4px solid #2196f3;
+        }
+        
+        .history-empty {
+            text-align: center;
+            padding: 40px 20px;
+            color: #6c757d;
+        }
+        
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 375px;
+            background: white;
+            padding: 15px 20px;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+        }
+        
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: #6c757d;
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+        
+        .nav-item.active {
+            color: #007bff;
+        }
+        
+        .nav-item i {
+            font-size: 20px;
+            margin-bottom: 5px;
+        }
+        
+        .nav-item span {
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="mobile-container">
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <div>
+                <i class="bi bi-signal"></i>
+                <span class="ms-1">9:41</span>
+            </div>
+            <div>
+                <span>100%</span>
+                <i class="bi bi-battery-full ms-2"></i>
+            </div>
+        </div>
+
+        <!-- Hub Crédits -->
+        <div class="screen active" id="credit-hub">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4 class="mb-0">Crédits</h4>
+                <small class="text-muted">Mis à jour</small>
+            </div>
+            
+            <!-- Score Crédit -->
+            <div class="credit-score-card">
+                <div>Score crédit</div>
+                <div class="score-number">750</div>
+                <div>Excellent</div>
+            </div>
+            
+            <!-- Nano Crédit (Découvert) -->
+            <div class="credit-option touch-feedback" onclick="showScreen('nano-credit')">
+                <div class="d-flex align-items-start">
+                    <div class="credit-icon nano-credit">
+                        N
+                    </div>
+                    <div class="flex-fill ms-3">
+                        <h6 class="mb-1">Nano Crédit</h6>
+                        <p class="text-muted mb-2">Découvert autorisé</p>
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <strong>Taux</strong><br>
+                                <span class="text-muted">2%/mois</span>
+                            </div>
+                            <div>
+                                <strong>Disponible</strong><br>
+                                <span class="text-muted">Immédiat</span>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary btn-sm mt-2 w-100">
+                            Activer overdraft
+                        </button>
+                    </div>
+                    <div class="text-end">
+                        <div class="h5 mb-0">50K</div>
+                        <small class="text-muted">RWF</small>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Micro Crédit -->
+            <div class="credit-option touch-feedback" onclick="showScreen('micro-credit')">
+                <div class="d-flex align-items-start">
+                    <div class="credit-icon micro-credit">
+                        M
+                    </div>
+                    <div class="flex-fill ms-3">
+                        <h6 class="mb-1">Micro Crédit</h6>
+                        <p class="text-muted mb-2">Remboursement 3-12 mois</p>
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <strong>Taux</strong><br>
+                                <span class="text-muted">15%/an</span>
+                            </div>
+                            <div>
+                                <strong>Délai</strong><br>
+                                <span class="text-muted">24h</span>
+                            </div>
+                        </div>
+                        <button class="btn btn-warning btn-sm mt-2 w-100">
+                            Demander crédit
+                        </button>
+                    </div>
+                    <div class="text-end">
+                        <div class="h5 mb-0">500K</div>
+                        <small class="text-muted">RWF max</small>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Historique -->
+            <div class="mt-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="mb-0">Historique</h6>
+                    <a href="#" class="text-primary">Tout</a>
+                </div>
+                
+                <div class="history-empty">
+                    <i class="bi bi-credit-card" style="font-size: 48px; color: #dee2e6;"></i>
+                    <p class="mt-3 mb-0">Aucun crédit actif</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Nano Crédit - Overdraft -->
+        <div class="screen" id="nano-credit">
+            <div class="d-flex align-items-center mb-4">
+                <button class="btn btn-link p-0 me-3" onclick="showScreen('credit-hub')">
+                    <i class="bi bi-arrow-left" style="font-size: 24px;"></i>
+                </button>
+                <h5 class="mb-0">Nano Crédit</h5>
+            </div>
+            
+            <div class="form-card">
+                <div class="text-center mb-4">
+                    <div class="credit-icon nano-credit mx-auto">
+                        N
+                    </div>
+                    <h5>Découvert autorisé</h5>
+                    <p class="text-muted">Jusqu'à 50,000 RWF</p>
+                </div>
+                
+                <div class="limit-indicator">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Limite disponible</span>
+                        <strong>50,000 RWF</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Taux d'intérêt</span>
+                        <strong>2% / mois</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Frais activation</span>
+                        <strong class="text-success">Gratuit</strong>
+                    </div>
+                </div>
+                
+                <div class="repayment-info">
+                    <h6><i class="bi bi-info-circle me-2"></i>Remboursement Automatique</h6>
+                    <p class="mb-0">Le montant utilisé sera automatiquement déduit de vos prochains dépôts.</p>
+                </div>
+                
+                <div class="activation-toggle">
+                    <div>
+                        <strong>Activer le découvert</strong>
+                        <div class="text-muted small">Disponible immédiatement</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" onchange="toggleOverdraft(this)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                
+                <div class="alert alert-info">
+                    <i class="bi bi-shield-check me-2"></i>
+                    <small>Votre limite de découvert est calculée automatiquement selon votre historique de transactions et votre score crédit.</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Micro Crédit -->
+        <div class="screen" id="micro-credit">
+            <div class="d-flex align-items-center mb-4">
+                <button class="btn btn-link p-0 me-3" onclick="showScreen('credit-hub')">
+                    <i class="bi bi-arrow-left" style="font-size: 24px;"></i>
+                </button>
+                <h5 class="mb-0">Micro Crédit</h5>
+            </div>
+            
+            <div class="form-card">
+                <div class="text-center mb-4">
+                    <div class="credit-icon micro-credit mx-auto">
+                        M
+                    </div>
+                    <h5>Crédit Personnel</h5>
+                    <p class="text-muted">Remboursement 3-12 mois • Jusqu'à 500,000 RWF</p>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Montant souhaité (RWF)</label>
+                    <input type="number" class="form-control" placeholder="0" max="500000" oninput="calculateLoan(this)">
+                    <small class="text-muted">Maximum selon votre profil: 500,000 RWF</small>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Durée de remboursement</label>
+                    <select class="form-control" onchange="calculateLoan()">
+                        <option value="3">3 mois (15% annuel)</option>
+                        <option value="6">6 mois (16% annuel)</option>
+                        <option value="9">9 mois (17% annuel)</option>
+                        <option value="12">12 mois (18% annuel)</option>
+                    </select>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Motif du crédit</label>
+                    <select class="form-control">
+                        <option value="">Sélectionnez un motif</option>
+                        <option value="business">Financement entreprise</option>
+                        <option value="education">Éducation</option>
+                        <option value="emergency">Urgence médicale</option>
+                        <option value="equipment">Équipement</option>
+                        <option value="other">Autre</option>
+                    </select>
+                </div>
+                
+                <div class="limit-indicator" id="loan-calculation" style="display: none;">
+                    <h6>Résumé du prêt</h6>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span>Montant emprunté:</span>
+                        <span id="loan-amount">0 RWF</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span>Intérêts totaux:</span>
+                        <span id="loan-interest">0 RWF</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span>Montant total:</span>
+                        <strong id="loan-total">0 RWF</strong>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>Remboursement mensuel:</span>
+                        <strong id="monthly-payment">0 RWF</strong>
+                    </div>
+                </div>
+                
+                <button class="btn btn-warning w-100 mt-3" onclick="submitCreditRequest()">
+                    <i class="bi bi-credit-card me-2"></i>Soumettre la demande
+                </button>
+                
+                <div class="alert alert-warning mt-3">
+                    <i class="bi bi-clock me-2"></i>
+                    <small><strong>Délai de traitement:</strong> Votre demande sera étudiée dans les 24h. Un KYC vérifié est requis pour les montants supérieurs à 200,000 RWF.</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Navigation -->
+        <div class="bottom-nav">
+            <a href="#" class="nav-item" onclick="showScreen('credit-hub')">
+                <i class="bi bi-house"></i>
+                <span>Home</span>
+            </a>
+            <a href="#" class="nav-item">
+                <i class="bi bi-wallet2"></i>
+                <span>Wallet</span>
+            </a>
+            <a href="#" class="nav-item">
+                <i class="bi bi-arrow-left-right"></i>
+                <span>Transfers</span>
+            </a>
+            <a href="#" class="nav-item active">
+                <i class="bi bi-credit-card"></i>
+                <span>Crédits</span>
+            </a>
+        </div>
+    </div>
+
+    <script>
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.classList.remove('active');
+            });
+            
+            setTimeout(() => {
+                document.getElementById(screenId).classList.add('active');
+            }, 100);
+        }
+        
+        function toggleOverdraft(toggle) {
+            if (toggle.checked) {
+                const alertDiv = document.createElement('div');
+                alertDiv.className = 'alert alert-success mt-3';
+                alertDiv.innerHTML = `
+                    <div class="success-checkmark"></div>
+                    <strong>Découvert activé!</strong> Votre limite de 50,000 RWF est maintenant disponible.
+                `;
+                toggle.closest('.form-card').appendChild(alertDiv);
+                
+                setTimeout(() => {
+                    alertDiv.remove();
+                }, 3000);
+            }
+        }
+        
+        function calculateLoan(input) {
+            const amount = parseFloat(document.querySelector('input[type="number"]').value) || 0;
+            const termSelect = document.querySelector('select');
+            const term = parseInt(termSelect.value) || 3;
+            
+            if (amount > 0) {
+                // Interest rates based on term
+                const rates = { 3: 0.15, 6: 0.16, 9: 0.17, 12: 0.18 };
+                const annualRate = rates[term];
+                const monthlyRate = annualRate / 12;
+                
+                // Calculate total interest and payments
+                const totalInterest = amount * annualRate * (term / 12);
+                const totalAmount = amount + totalInterest;
+                const monthlyPayment = totalAmount / term;
+                
+                // Update display
+                document.getElementById('loan-amount').textContent = amount.toLocaleString() + ' RWF';
+                document.getElementById('loan-interest').textContent = totalInterest.toLocaleString() + ' RWF';
+                document.getElementById('loan-total').textContent = totalAmount.toLocaleString() + ' RWF';
+                document.getElementById('monthly-payment').textContent = monthlyPayment.toLocaleString() + ' RWF';
+                
+                document.getElementById('loan-calculation').style.display = 'block';
+            } else {
+                document.getElementById('loan-calculation').style.display = 'none';
+            }
+        }
+        
+        function submitCreditRequest() {
+            const button = event.target;
+            const originalText = button.innerHTML;
+            
+            button.disabled = true;
+            button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Traitement...';
+            
+            setTimeout(() => {
+                button.disabled = false;
+                button.innerHTML = '<i class="bi bi-check-circle me-2"></i>Demande soumise!';
+                button.classList.remove('btn-warning');
+                button.classList.add('btn-success');
+                
+                const alertDiv = document.createElement('div');
+                alertDiv.className = 'alert alert-success mt-3';
+                alertDiv.innerHTML = `
+                    <div class="success-checkmark"></div>
+                    <strong>Demande soumise avec succès!</strong> Vous recevrez une notification dans les 24h.
+                `;
+                button.parentElement.appendChild(alertDiv);
+                
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                    button.classList.remove('btn-success');
+                    button.classList.add('btn-warning');
+                    alertDiv.remove();
+                    showScreen('credit-hub');
+                }, 3000);
+            }, 2000);
+        }
+        
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Credit Screens loaded');
+        });
+    </script>
+</body>
+</html>

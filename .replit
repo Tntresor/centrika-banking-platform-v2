@@ -51,8 +51,8 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd mobile && node serve-demo.js"
-waitForPort = 5000
+args = "cd mobile && PORT=5001 node serve-demo.js"
+waitForPort = 5001
 
 [[workflows.workflow]]
 name = "Banking API Server"
@@ -60,8 +60,8 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd server && node start.js"
-waitForPort = 8000
+args = "cd server && PORT=8002 node start.js"
+waitForPort = 8002
 
 [deployment]
 run = ["sh", "-c", "cd server && npm install && cd ../mobile && npm install && cd ../backoffice && npm install"]
@@ -74,6 +74,10 @@ externalPort = 3000
 [[ports]]
 localPort = 5000
 externalPort = 6000
+
+[[ports]]
+localPort = 5001
+externalPort = 6800
 
 [[ports]]
 localPort = 8000

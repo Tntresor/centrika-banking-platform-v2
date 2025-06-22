@@ -1,0 +1,897 @@
+const axios = require(‘axios’);
+const EventEmitter = require(‘events’);
+const logger = require(’../utils/logger’);
+const { AppError, ErrorCodes } = require(’../utils/errors’);
+
+/**
+
+- Configuration Service for dynamic back-office configuration management
+- Handles fetching, caching, validation, and real-time updates of system configurations
+  */
+  class ConfigService extends EventEmitter {
+  constructor() {
+  super();
+  
+  // Configuration cache
+  this.cache = new Map();
+  
+  // Default TTL for configurations (5 minutes)
+  this.defaultTtl = 5 * 60 * 1000;
+  
+  // Back office API configuration
+  this.backOfficeConfig = {
+  baseUrl: process.env.BACK_OFFICE_API_URL || ‘http://localhost:3001/api’,
+  apiKey: process.env.BACK_OFFICE_API_KEY,
+  timeout: parseInt(process.env.BACK_OFFICE_TIMEOUT) || 10000,
+  retryAttempts: parseInt(process.env.BACK_OFFICE_RETRY_ATTEMPTS) || 3,
+  retryDelay: parseInt(process.env.BACK_OFFICE_RETRY_DELAY) || 1000
+  };
+  
+  // HTTP client for back office communication
+  this.httpClient = axios.create({
+  baseURL: this.backOfficeConfig.baseUrl,
+  timeout: this.backOfficeConfig.timeout,
+  headers: {
+  ‘Authorization’: `Bearer ${this.backOfficeConfig.apiKey}`,
+  ‘Content-Type’: ‘application/json’,
+  ‘User-Agent’: `credit-service/${process.env.APP_VERSION || '1.0.0'}`
+  }
+  });
+  
+  // Request interceptor for logging
+  this.httpClient.interceptors.request.use(
+  (config) => {
+  logger.debug(‘Back office API request’, {
+  method: config.method?.toUpperCase(),
+  url: config.url,
+  timestamp: new Date().toISOString()
+  });
+  return config;
+  },
+  (error) => {
+  logger.error(‘Back office API request error’, { error: error.message });
+  return Promise.reject(error);
+  }
+  );
+  
+  // Response interceptor for logging and error handling
+  this.httpClient.interceptors.response.use(
+  (response) => {
+  logger.debug(‘Back office API response’, {
+  status: response.status,
+  url: response.config.url,
+  responseTime: response.headers[‘x-response-time’],
+  timestamp: new Date().toISOString()
+  });
+  return response;
+  },
+  (error) => {
+  logger.error(‘Back office API response error’, {
+  status: error.response?.status,
+  message: error.message,
+  url: error.config?.url,
+  timestamp: new Date().toISOString()
+  });
+  return Promise.reject(error);
+  }
+  );
+  
+  // Initialize periodic health checks
+  this.initializeHealthChecks();
+  
+  // Initialize WebSocket connection for real-time updates (if available)
+  this.initializeRealtimeUpdates();
+  }
+
+/**
+
+- Get credit configuration with caching and fallback mechanisms
+- @param {Object} options - Configuration options
+- @param {boolean} options.forceRefresh - Force refresh from back office
+- @param {string} options.environment - Environment specific config
+- @param {string} options.userSegment - User segment for A/B testing
+- @returns {Promise<Object>} Configuration object
+  */
+  async getCreditConfiguration(options = {}) {
+  const cacheKey = this.buildCacheKey(‘credit’, options);
+
+```
+try {
+  // Return cached config if valid and not forcing refresh
+  if (!options.forceRefresh) {
+    const cached = this.getCachedConfig(cacheKey);
+    if (cached) {
+      logger.debug('Returning cached credit configuration', { 
+        cacheKey, 
+        version: cached.version,
+        age: Date.now() - cached.cachedAt
+      });
+      return cached;
+    }
+  }
+  
+  // Fetch fresh configuration from back office
+  const config = await this.fetchConfigurationFromBackOffice('credit', options);
+  
+  // Validate configuration structure
+  this.validateCreditConfiguration(config);
+  
+  // Cache the configuration
+  this.setCachedConfig(cacheKey, config);
+  
+  // Emit configuration update event
+  this.emit('configurationUpdated', {
+    type: 'credit',
+    version: config.version,
+    cacheKey,
+    timestamp: new Date().toISOString()
+  });
+  
+  logger.info('Credit configuration fetched successfully', {
+    version: config.version,
+    cacheKey,
+    environment: options.environment,
+    userSegment: options.userSegment
+  });
+  
+  return config;
+  
+} catch (error) {
+  logger.error('Failed to get credit configuration', {
+    error: error.message,
+    cacheKey,
+    options,
+    timestamp: new Date().toISOString()
+  });
+  
+  // Try to return stale cache as fallback
+  const staleCache = this.getStaleCache(cacheKey);
+  if (staleCache) {
+    logger.warn('Using stale cached configuration as fallback', {
+      cacheKey,
+      version: staleCache.version,
+      age: Date.now() - staleCache.cachedAt
+    });
+    return staleCache;
+  }
+  
+  // Return default configuration as last resort
+  logger.warn('Using default configuration as last resort', { cacheKey });
+  return this.getDefaultCreditConfiguration();
+}
+```
+
+}
+
+/**
+
+- Update credit configuration in back office
+- @param {Object} config - Configuration to update
+- @param {Object} metadata - Update metadata (user, reason, etc.)
+- @returns {Promise<Object>} Updated configuration
+  */
+  async updateCreditConfiguration(config, metadata = {}) {
+  try {
+  // Validate configuration before updating
+  this.validateCreditConfiguration(config);
+  
+  // Prepare update payload
+  const updatePayload = {
+  configuration: config,
+  metadata: {
+  updatedBy: metadata.userId || ‘system’,
+  reason: metadata.reason || ‘Configuration update’,
+  timestamp: new Date().toISOString(),
+  source: metadata.source || ‘credit-service’,
+  environment: metadata.environment || process.env.NODE_ENV || ‘development’
+  }
+  };
+  
+  logger.info(‘Updating credit configuration’, {
+  version: config.version,
+  updatedBy: updatePayload.metadata.updatedBy,
+  reason: updatePayload.metadata.reason
+  });
+  
+  // Send update to back office with retry logic
+  const response = await this.retryOperation(
+  () => this.httpClient.put(’/configurations/credit’, updatePayload),
+  this.backOfficeConfig.retryAttempts
+  );
+  
+  const updatedConfig = response.data.configuration;
+  
+  // Invalidate all related cache entries
+  this.invalidateConfigurationCache(‘credit’);
+  
+  // Emit configuration change event
+  this.emit(‘configurationChanged’, {
+  type: ‘credit’,
+  oldVersion: config.version,
+  newVersion: updatedConfig.version,
+  updatedBy: updatePayload.metadata.updatedBy,
+  timestamp: new Date().toISOString()
+  });
+  
+  logger.info(‘Credit configuration updated successfully’, {
+  oldVersion: config.version,
+  newVersion: updatedConfig.version,
+  updatedBy: updatePayload.metadata.updatedBy
+  });
+  
+  return updatedConfig;
+
+```
+} catch (error) {
+  logger.error('Failed to update credit configuration', {
+    error: error.message,
+    version: config.version,
+    metadata,
+    timestamp: new Date().toISOString()
+  });
+  
+  throw new AppError(
+    'Failed to update configuration',
+    ErrorCodes.CONFIG_UPDATE_FAILED,
+    500,
+    { originalError: error.message }
+  );
+}
+```
+
+}
+
+/**
+
+- Get configuration history for audit purposes
+- @param {Object} filters - History filters
+- @param {string} filters.type - Configuration type
+- @param {Date} filters.fromDate - Start date
+- @param {Date} filters.toDate - End date
+- @param {string} filters.updatedBy - Updated by user
+- @param {number} filters.page - Page number
+- @param {number} filters.limit - Items per page
+- @returns {Promise<Object>} Configuration history
+  */
+  async getConfigurationHistory(filters = {}) {
+  try {
+  const queryParams = new URLSearchParams();
+  
+  // Build query parameters
+  Object.keys(filters).forEach(key => {
+  if (filters[key] !== undefined && filters[key] !== null) {
+  queryParams.append(key, filters[key]);
+  }
+  });
+  
+  const response = await this.retryOperation(
+  () => this.httpClient.get(`/configurations/history?${queryParams.toString()}`),
+  this.backOfficeConfig.retryAttempts
+  );
+  
+  logger.info(‘Configuration history retrieved’, {
+  filters,
+  totalRecords: response.data.total,
+  page: filters.page || 1
+  });
+  
+  return response.data;
+
+```
+} catch (error) {
+  logger.error('Failed to get configuration history', {
+    error: error.message,
+    filters,
+    timestamp: new Date().toISOString()
+  });
+  
+  throw new AppError(
+    'Failed to retrieve configuration history',
+    ErrorCodes.CONFIG_HISTORY_FAILED,
+    500,
+    { originalError: error.message }
+  );
+}
+```
+
+}
+
+/**
+
+- Validate environment and service health
+- @returns {Promise<Object>} Health status
+  */
+  async getHealthStatus() {
+  const healthStatus = {
+  service: ‘config-service’,
+  timestamp: new Date().toISOString(),
+  status: ‘healthy’,
+  checks: {
+  backOfficeConnection: { status: ‘unknown’ },
+  cache: { status: ‘healthy’, size: this.cache.size },
+  configuration: { status: ‘unknown’ }
+  }
+  };
+
+```
+try {
+  // Test back office connection
+  const startTime = Date.now();
+  await this.httpClient.get('/health');
+  const responseTime = Date.now() - startTime;
+  
+  healthStatus.checks.backOfficeConnection = {
+    status: 'healthy',
+    responseTime: `${responseTime}ms`,
+    lastCheck: new Date().toISOString()
+  };
+  
+  // Test configuration retrieval
+  try {
+    await this.getCreditConfiguration({ forceRefresh: false });
+    healthStatus.checks.configuration = {
+      status: 'healthy',
+      lastConfigFetch: new Date().toISOString()
+    };
+  } catch (configError) {
+    healthStatus.checks.configuration = {
+      status: 'degraded',
+      error: configError.message,
+      lastConfigFetch: new Date().toISOString()
+    };
+    healthStatus.status = 'degraded';
+  }
+  
+} catch (error) {
+  healthStatus.checks.backOfficeConnection = {
+    status: 'unhealthy',
+    error: error.message,
+    lastCheck: new Date().toISOString()
+  };
+  healthStatus.status = 'degraded';
+}
+
+return healthStatus;
+```
+
+}
+
+/**
+
+- Fetch configuration from back office with environment and segment support
+- @private
+  */
+  async fetchConfigurationFromBackOffice(type, options = {}) {
+  const queryParams = new URLSearchParams();
+
+```
+if (options.environment) {
+  queryParams.append('environment', options.environment);
+}
+
+if (options.userSegment) {
+  queryParams.append('userSegment', options.userSegment);
+}
+
+const url = `/configurations/${type}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+
+const response = await this.retryOperation(
+  () => this.httpClient.get(url),
+  this.backOfficeConfig.retryAttempts
+);
+
+return response.data.configuration;
+```
+
+}
+
+/**
+
+- Validate credit configuration structure
+- @private
+  */
+  validateCreditConfiguration(config) {
+  const requiredFields = [
+  ‘version’,
+  ‘overdraft’,
+  ‘credit’,
+  ‘repayment’,
+  ‘facilities’,
+  ‘general’
+  ];
+
+```
+// Check required top-level fields
+requiredFields.forEach(field => {
+  if (!config[field]) {
+    throw new AppError(
+      `Missing required configuration field: ${field}`,
+      ErrorCodes.INVALID_CONFIG_STRUCTURE,
+      400
+    );
+  }
+});
+
+// Validate overdraft configuration
+this.validateOverdraftConfig(config.overdraft);
+
+// Validate credit configuration
+this.validateCreditConfig(config.credit);
+
+// Validate repayment configuration
+this.validateRepaymentConfig(config.repayment);
+
+// Validate facilities configuration
+this.validateFacilitiesConfig(config.facilities);
+
+// Validate general configuration
+this.validateGeneralConfig(config.general);
+```
+
+}
+
+/**
+
+- Validate overdraft configuration section
+- @private
+  */
+  validateOverdraftConfig(overdraftConfig) {
+  const required = [‘maxAmount’, ‘purposeMaxLength’, ‘rateLimit’];
+
+```
+required.forEach(field => {
+  if (overdraftConfig[field] === undefined) {
+    throw new AppError(
+      `Missing overdraft configuration field: ${field}`,
+      ErrorCodes.INVALID_CONFIG_STRUCTURE,
+      400
+    );
+  }
+});
+
+// Validate numeric constraints
+if (overdraftConfig.maxAmount <= 0) {
+  throw new AppError(
+    'Overdraft maxAmount must be positive',
+    ErrorCodes.INVALID_CONFIG_VALUE,
+    400
+  );
+}
+
+if (overdraftConfig.purposeMaxLength <= 0) {
+  throw new AppError(
+    'Overdraft purposeMaxLength must be positive',
+    ErrorCodes.INVALID_CONFIG_VALUE,
+    400
+  );
+}
+```
+
+}
+
+/**
+
+- Validate credit configuration section
+- @private
+  */
+  validateCreditConfig(creditConfig) {
+  const required = [‘maxAmount’, ‘minTermMonths’, ‘maxTermMonths’, ‘purposeMaxLength’, ‘rateLimit’];
+
+```
+required.forEach(field => {
+  if (creditConfig[field] === undefined) {
+    throw new AppError(
+      `Missing credit configuration field: ${field}`,
+      ErrorCodes.INVALID_CONFIG_STRUCTURE,
+      400
+    );
+  }
+});
+
+// Validate numeric constraints
+if (creditConfig.maxAmount <= 0) {
+  throw new AppError(
+    'Credit maxAmount must be positive',
+    ErrorCodes.INVALID_CONFIG_VALUE,
+    400
+  );
+}
+
+if (creditConfig.minTermMonths >= creditConfig.maxTermMonths) {
+  throw new AppError(
+    'Credit minTermMonths must be less than maxTermMonths',
+    ErrorCodes.INVALID_CONFIG_VALUE,
+    400
+  );
+}
+
+if (creditConfig.minTermMonths <= 0) {
+  throw new AppError(
+    'Credit minTermMonths must be positive',
+    ErrorCodes.INVALID_CONFIG_VALUE,
+    400
+  );
+}
+```
+
+}
+
+/**
+
+- Validate repayment configuration section
+- @private
+  */
+  validateRepaymentConfig(repaymentConfig) {
+  const required = [‘allowedPaymentMethods’, ‘rateLimit’];
+
+```
+required.forEach(field => {
+  if (repaymentConfig[field] === undefined) {
+    throw new AppError(
+      `Missing repayment configuration field: ${field}`,
+      ErrorCodes.INVALID_CONFIG_STRUCTURE,
+      400
+    );
+  }
+});
+
+// Validate payment methods
+if (!Array.isArray(repaymentConfig.allowedPaymentMethods) || 
+    repaymentConfig.allowedPaymentMethods.length === 0) {
+  throw new AppError(
+    'Repayment allowedPaymentMethods must be a non-empty array',
+    ErrorCodes.INVALID_CONFIG_VALUE,
+    400
+  );
+}
+```
+
+}
+
+/**
+
+- Validate facilities configuration section
+- @private
+  */
+  validateFacilitiesConfig(facilitiesConfig) {
+  const required = [‘maxPageSize’, ‘defaultPageSize’];
+
+```
+required.forEach(field => {
+  if (facilitiesConfig[field] === undefined) {
+    throw new AppError(
+      `Missing facilities configuration field: ${field}`,
+      ErrorCodes.INVALID_CONFIG_STRUCTURE,
+      400
+    );
+  }
+});
+
+// Validate page size constraints
+if (facilitiesConfig.maxPageSize <= 0 || facilitiesConfig.defaultPageSize <= 0) {
+  throw new AppError(
+    'Facilities page sizes must be positive',
+    ErrorCodes.INVALID_CONFIG_VALUE,
+    400
+  );
+}
+
+if (facilitiesConfig.defaultPageSize > facilitiesConfig.maxPageSize) {
+  throw new AppError(
+    'Facilities defaultPageSize cannot exceed maxPageSize',
+    ErrorCodes.INVALID_CONFIG_VALUE,
+    400
+  );
+}
+```
+
+}
+
+/**
+
+- Validate general configuration section
+- @private
+  */
+  validateGeneralConfig(generalConfig) {
+  // General config validation is more flexible
+  // Most fields are optional with sensible defaults
+
+```
+if (generalConfig.configCacheTtl !== undefined && generalConfig.configCacheTtl <= 0) {
+  throw new AppError(
+    'General configCacheTtl must be positive',
+    ErrorCodes.INVALID_CONFIG_VALUE,
+    400
+  );
+}
+```
+
+}
+
+/**
+
+- Build cache key for configuration
+- @private
+  */
+  buildCacheKey(type, options = {}) {
+  const parts = [type];
+
+```
+if (options.environment) {
+  parts.push(`env:${options.environment}`);
+}
+
+if (options.userSegment) {
+  parts.push(`segment:${options.userSegment}`);
+}
+
+return parts.join('|');
+```
+
+}
+
+/**
+
+- Get cached configuration if valid
+- @private
+  */
+  getCachedConfig(cacheKey) {
+  const cached = this.cache.get(cacheKey);
+
+```
+if (!cached) {
+  return null;
+}
+
+const now = Date.now();
+const ttl = cached.ttl || this.defaultTtl;
+
+if (now - cached.cachedAt > ttl) {
+  // Cache expired
+  this.cache.delete(cacheKey);
+  return null;
+}
+
+return cached;
+```
+
+}
+
+/**
+
+- Get stale cache (expired but still available)
+- @private
+  */
+  getStaleCache(cacheKey) {
+  return this.cache.get(cacheKey) || null;
+  }
+
+/**
+
+- Set configuration in cache
+- @private
+  */
+  setCachedConfig(cacheKey, config) {
+  const cacheEntry = {
+  …config,
+  cachedAt: Date.now(),
+  ttl: config.cacheTtl || this.defaultTtl
+  };
+
+```
+this.cache.set(cacheKey, cacheEntry);
+```
+
+}
+
+/**
+
+- Invalidate configuration cache
+- @private
+  */
+  invalidateConfigurationCache(type) {
+  const keysToDelete = [];
+
+```
+for (const [key] of this.cache) {
+  if (key.startsWith(type)) {
+    keysToDelete.push(key);
+  }
+}
+
+keysToDelete.forEach(key => {
+  this.cache.delete(key);
+  logger.debug('Invalidated cache key', { key });
+});
+
+logger.info('Configuration cache invalidated', { 
+  type, 
+  keysInvalidated: keysToDelete.length 
+});
+```
+
+}
+
+/**
+
+- Retry operation with exponential backoff
+- @private
+  */
+  async retryOperation(operation, maxAttempts) {
+  let lastError;
+
+```
+for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+  try {
+    return await operation();
+  } catch (error) {
+    lastError = error;
+    
+    if (attempt === maxAttempts) {
+      break;
+    }
+    
+    const delay = this.backOfficeConfig.retryDelay * Math.pow(2, attempt - 1);
+    
+    logger.warn('Operation failed, retrying', {
+      attempt,
+      maxAttempts,
+      delay,
+      error: error.message
+    });
+    
+    await new Promise(resolve => setTimeout(resolve, delay));
+  }
+}
+
+throw lastError;
+```
+
+}
+
+/**
+
+- Get default credit configuration
+- @private
+  */
+  getDefaultCreditConfiguration() {
+  return {
+  version: ‘default-1.0.0’,
+  lastUpdated: new Date().toISOString(),
+  overdraft: {
+  maxAmount: 1000000,
+  purposeMaxLength: 200,
+  rateLimit: {
+  windowMs: 10 * 60 * 1000,
+  maxRequests: 5
+  }
+  },
+  credit: {
+  maxAmount: 5000000,
+  minTermMonths: 3,
+  maxTermMonths: 12,
+  purposeMaxLength: 500,
+  rateLimit: {
+  windowMs: 15 * 60 * 1000,
+  maxRequests: 3
+  }
+  },
+  repayment: {
+  rateLimit: {
+  windowMs: 5 * 60 * 1000,
+  maxRequests: 10
+  },
+  allowedPaymentMethods: [‘bank_transfer’, ‘card’, ‘wallet’]
+  },
+  facilities: {
+  maxPageSize: 50,
+  defaultPageSize: 10
+  },
+  general: {
+  configCacheTtl: 5 * 60 * 1000,
+  enableDetailedLogging: true,
+  requirePurposeForOverdraft: false,
+  skipRateLimitForAdmins: false
+  }
+  };
+  }
+
+/**
+
+- Initialize periodic health checks
+- @private
+  */
+  initializeHealthChecks() {
+  const healthCheckInterval = parseInt(process.env.CONFIG_HEALTH_CHECK_INTERVAL) || 60000; // 1 minute
+
+```
+setInterval(async () => {
+  try {
+    const health = await this.getHealthStatus();
+    
+    if (health.status !== 'healthy') {
+      logger.warn('Configuration service health check failed', health);
+      this.emit('healthCheckFailed', health);
+    }
+  } catch (error) {
+    logger.error('Health check error', { error: error.message });
+  }
+}, healthCheckInterval);
+```
+
+}
+
+/**
+
+- Initialize real-time configuration updates via WebSocket
+- @private
+  */
+  initializeRealtimeUpdates() {
+  if (!process.env.BACK_OFFICE_WEBSOCKET_URL) {
+  logger.info(‘WebSocket URL not configured, skipping real-time updates’);
+  return;
+  }
+
+```
+try {
+  const WebSocket = require('ws');
+  const ws = new WebSocket(process.env.BACK_OFFICE_WEBSOCKET_URL);
+  
+  ws.on('open', () => {
+    logger.info('Connected to back office WebSocket for real-time updates');
+    
+    // Subscribe to configuration updates
+    ws.send(JSON.stringify({
+      type: 'subscribe',
+      channels: ['configuration-updates'],
+      service: 'credit-service'
+    }));
+  });
+  
+  ws.on('message', (data) => {
+    try {
+      const message = JSON.parse(data.toString());
+      
+      if (message.type === 'configuration-updated') {
+        logger.info('Received real-time configuration update', {
+          configType: message.configType,
+          version: message.version
+        });
+        
+        // Invalidate cache for updated configuration
+        this.invalidateConfigurationCache(message.configType);
+        
+        // Emit update event
+        this.emit('realtimeConfigUpdate', message);
+      }
+    } catch (error) {
+      logger.error('Error processing WebSocket message', { error: error.message });
+    }
+  });
+  
+  ws.on('close', () => {
+    logger.warn('WebSocket connection to back office closed');
+    
+    // Attempt to reconnect after delay
+    setTimeout(() => {
+      logger.info('Attempting to reconnect to back office WebSocket');
+      this.initializeRealtimeUpdates();
+    }, 30000);
+  });
+  
+  ws.on('error', (error) => {
+    logger.error('WebSocket connection error', { error: error.message });
+  });
+  
+} catch (error) {
+  logger.error('Failed to initialize WebSocket connection', { error: error.message });
+}
+```
+
+}
+}
+
+// Create singleton instance
+const configService = new ConfigService();
+
+module.exports = configService;

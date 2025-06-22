@@ -1,0 +1,507 @@
+// =============================================================================
+// BACK OFFICE API SPECIFICATION FOR CONFIGURATION MANAGEMENT
+// =============================================================================
+// This file documents the required API endpoints that the back office
+// system must implement to support dynamic configuration management
+
+/**
+
+- =============================================================================
+- AUTHENTICATION
+- =============================================================================
+- All API requests must include authentication via Bearer token:
+- Authorization: Bearer <API_KEY>
+- 
+- Content-Type: application/json
+- User-Agent: credit-service/<version>
+  */
+
+/**
+
+- =============================================================================
+- 1. GET /api/configurations/credit
+- =============================================================================
+- Retrieve current credit configuration with optional filtering
+  */
+
+// REQUEST
+// GET /api/configurations/credit?environment=production&userSegment=premium
+// Headers:
+// Authorization: Bearer <API_KEY>
+
+// RESPONSE (200 OK)
+const getCreditConfigurationResponse = {
+“success”: true,
+“timestamp”: “2025-06-22T10:00:00.000Z”,
+“data”: {
+“configuration”: {
+“version”: “1.2.3”,
+“lastUpdated”: “2025-06-22T09:30:00.000Z”,
+“environment”: “production”,
+“userSegment”: “premium”,
+“createdBy”: “admin@company.com”,
+“overdraft”: {
+“maxAmount”: 1000000,
+“purposeMaxLength”: 200,
+“rateLimit”: {
+“windowMs”: 600000,
+“maxRequests”: 5
+}
+},
+“credit”: {
+“maxAmount”: 5000000,
+“minTermMonths”: 3,
+“maxTermMonths”: 12,
+“purposeMaxLength”: 500,
+“rateLimit”: {
+“windowMs”: 900000,
+“maxRequests”: 3
+}
+},
+“repayment”: {
+“rateLimit”: {
+“windowMs”: 300000,
+“maxRequests”: 10
+},
+“allowedPaymentMethods”: [“bank_transfer”, “card”, “wallet”]
+},
+“facilities”: {
+“maxPageSize”: 50,
+“defaultPageSize”: 10
+},
+“general”: {
+“configCacheTtl”: 300000,
+“enableDetailedLogging”: true,
+“requirePurposeForOverdraft”: false,
+“skipRateLimitForAdmins”: true
+}
+}
+}
+};
+
+// ERROR RESPONSES
+const errorResponses = {
+// 401 Unauthorized
+“unauthorized”: {
+“success”: false,
+“error”: {
+“code”: “UNAUTHORIZED”,
+“message”: “Invalid or missing API key”,
+“timestamp”: “2025-06-22T10:00:00.000Z”
+}
+},
+
+// 404 Not Found
+“configNotFound”: {
+“success”: false,
+“error”: {
+“code”: “CONFIG_NOT_FOUND”,
+“message”: “Configuration not found for specified parameters”,
+“timestamp”: “2025-06-22T10:00:00.000Z”
+}
+},
+
+// 500 Internal Server Error
+“internalError”: {
+“success”: false,
+“error”: {
+“code”: “INTERNAL_ERROR”,
+“message”: “Internal server error occurred”,
+“timestamp”: “2025-06-22T10:00:00.000Z”
+}
+}
+};
+
+/**
+
+- =============================================================================
+- 1. PUT /api/configurations/credit
+- =============================================================================
+- Update credit configuration with audit trail
+  */
+
+// REQUEST
+const updateCreditConfigurationRequest = {
+“configuration”: {
+“version”: “1.2.4”,
+“overdraft”: {
+“maxAmount”: 1200000,  // Increased limit
+“purposeMaxLength”: 250,
+“rateLimit”: {
+“windowMs”: 600000,
+“maxRequests”: 7
+}
+},
+“credit”: {
+“maxAmount”: 6000000,  // Increased limit
+“minTermMonths”: 3,
+“maxTermMonths”: 18,   // Extended term
+“purposeMaxLength”: 500,
+“rateLimit”: {
+“windowMs”: 900000,
+“maxRequests”: 3
+}
+},
+“repayment”: {
+“rateLimit”: {
+“windowMs”: 300000,
+“maxRequests”: 10
+},
+“allowedPaymentMethods”: [“bank_transfer”, “card”, “wallet”, “crypto”]  // Added crypto
+},
+“facilities”: {
+“maxPageSize”: 100,    // Increased page size
+“defaultPageSize”: 20
+},
+“general”: {
+“configCacheTtl”: 300000,
+“enableDetailedLogging”: true,
+“requirePurposeForOverdraft”: true,  // Now required
+“skipRateLimitForAdmins”: true
+}
+},
+“metadata”: {
+“updatedBy”: “admin@company.com”,
+“reason”: “Quarterly limit increase and crypto payment support”,
+“source”: “admin-dashboard”,
+“environment”: “production”,
+“approvedBy”: “cfo@company.com”,
+“ticketNumber”: “CONF-2025-001”
+}
+};
+
+// RESPONSE (200 OK)
+const updateCreditConfigurationResponse = {
+“success”: true,
+“timestamp”: “2025-06-22T10:15:00.000Z”,
+“data”: {
+“configuration”: {
+“version”: “1.2.4”,
+“lastUpdated”: “2025-06-22T10:15:00.000Z”,
+“environment”: “production”,
+// … (full updated configuration)
+},
+“changesSummary”: {
+“fieldsChanged”: [
+“overdraft.maxAmount”,
+“credit.maxAmount”,
+“credit.maxTermMonths”,
+“repayment.allowedPaymentMethods”,
+“facilities.maxPageSize”,
+“general.requirePurposeForOverdraft”
+],
+“previousVersion”: “1.2.3”,
+“newVersion”: “1.2.4”
+}
+}
+};
+
+// ERROR RESPONSES
+const updateErrorResponses = {
+// 400 Bad Request
+“validationError”: {
+“success”: false,
+“error”: {
+“code”: “VALIDATION_ERROR”,
+“message”: “Invalid configuration data”,
+“details”: [
+{
+“field”: “overdraft.maxAmount”,
+“error”: “Must be a positive number”
+},
+{
+“field”: “credit.minTermMonths”,
+“error”: “Must be less than maxTermMonths”
+}
+],
+“timestamp”: “2025-06-22T10:00:00.000Z”
+}
+},
+
+// 403 Forbidden
+“insufficientPermissions”: {
+“success”: false,
+“error”: {
+“code”: “INSUFFICIENT_PERMISSIONS”,
+“message”: “User lacks permission to update configuration”,
+“timestamp”: “2025-06-22T10:00:00.000Z”
+}
+}
+};
+
+/**
+
+- =============================================================================
+- 1. GET /api/configurations/history
+- =============================================================================
+- Retrieve configuration change history with filtering and pagination
+  */
+
+// REQUEST
+// GET /api/configurations/history?type=credit&fromDate=2025-06-01&toDate=2025-06-22&updatedBy=admin@company.com&page=1&limit=10
+
+// RESPONSE (200 OK)
+const getConfigurationHistoryResponse = {
+“success”: true,
+“timestamp”: “2025-06-22T10:00:00.000Z”,
+“data”: {
+“total”: 45,
+“page”: 1,
+“limit”: 10,
+“totalPages”: 5,
+“history”: [
+{
+“id”: “hist_001”,
+“version”: “1.2.4”,
+“previousVersion”: “1.2.3”,
+“type”: “credit”,
+“environment”: “production”,
+“updatedBy”: “admin@company.com”,
+“updatedAt”: “2025-06-22T10:15:00.000Z”,
+“reason”: “Quarterly limit increase and crypto payment support”,
+“source”: “admin-dashboard”,
+“approvedBy”: “cfo@company.com”,
+“ticketNumber”: “CONF-2025-001”,
+“changes”: [
+{
+“field”: “overdraft.maxAmount”,
+“oldValue”: 1000000,
+“newValue”: 1200000,
+“changeType”: “modified”
+},
+{
+“field”: “repayment.allowedPaymentMethods”,
+“oldValue”: [“bank_transfer”, “card”, “wallet”],
+“newValue”: [“bank_transfer”, “card”, “wallet”, “crypto”],
+“changeType”: “modified”
+}
+],
+“rollbackAvailable”: true
+},
+{
+“id”: “hist_002”,
+“version”: “1.2.3”,
+“previousVersion”: “1.2.2”,
+“type”: “credit”,
+“environment”: “production”,
+“updatedBy”: “system@company.com”,
+“updatedAt”: “2025-06-20T14:30:00.000Z”,
+“reason”: “Emergency rate limit adjustment”,
+“source”: “monitoring-system”,
+“changes”: [
+{
+“field”: “credit.rateLimit.maxRequests”,
+“oldValue”: 5,
+“newValue”: 3,
+“changeType”: “modified”
+}
+],
+“rollbackAvailable”: true
+}
+]
+}
+};
+
+/**
+
+- =============================================================================
+- 1. POST /api/configurations/rollback
+- =============================================================================
+- Rollback configuration to a previous version
+  */
+
+// REQUEST
+const rollbackConfigurationRequest = {
+“configType”: “credit”,
+“targetVersion”: “1.2.3”,
+“environment”: “production”,
+“metadata”: {
+“rolledBackBy”: “admin@company.com”,
+“reason”: “Critical issue with version 1.2.4”,
+“source”: “emergency-response”,
+“ticketNumber”: “INC-2025-005”
+}
+};
+
+// RESPONSE (200 OK)
+const rollbackConfigurationResponse = {
+“success”: true,
+“timestamp”: “2025-06-22T11:00:00.000Z”,
+“data”: {
+“configuration”: {
+“version”: “1.2.3-rollback”,
+“lastUpdated”: “2025-06-22T11:00:00.000Z”,
+“rolledBackFrom”: “1.2.4”,
+// … (rolled back configuration)
+},
+“rollbackSummary”: {
+“sourceVersion”: “1.2.4”,
+“targetVersion”: “1.2.3”,
+“rolledBackBy”: “admin@company.com”,
+“reason”: “Critical issue with version 1.2.4”
+}
+}
+};
+
+/**
+
+- =============================================================================
+- 1. GET /api/health
+- =============================================================================
+- Health check endpoint for monitoring back office availability
+  */
+
+// RESPONSE (200 OK)
+const healthCheckResponse = {
+“success”: true,
+“timestamp”: “2025-06-22T10:00:00.000Z”,
+“data”: {
+“status”: “healthy”,
+“version”: “2.1.0”,
+“uptime”: 1234567,
+“services”: {
+“database”: { “status”: “healthy”, “responseTime”: “5ms” },
+“cache”: { “status”: “healthy”, “responseTime”: “2ms” },
+“authentication”: { “status”: “healthy”, “responseTime”: “8ms” }
+},
+“metrics”: {
+“requestsPerMinute”: 150,
+“averageResponseTime”: “45ms”,
+“errorRate”: 0.02
+}
+}
+};
+
+// RESPONSE (503 Service Unavailable)
+const healthCheckDegradedResponse = {
+“success”: false,
+“timestamp”: “2025-06-22T10:00:00.000Z”,
+“data”: {
+“status”: “degraded”,
+“version”: “2.1.0”,
+“uptime”: 1234567,
+“services”: {
+“database”: { “status”: “healthy”, “responseTime”: “5ms” },
+“cache”: { “status”: “unhealthy”, “error”: “Connection timeout” },
+“authentication”: { “status”: “healthy”, “responseTime”: “8ms” }
+},
+“issues”: [
+{
+“service”: “cache”,
+“severity”: “warning”,
+“message”: “Cache service experiencing connectivity issues”
+}
+]
+}
+};
+
+/**
+
+- =============================================================================
+- 1. WebSocket Events (Optional Real-time Updates)
+- =============================================================================
+- WebSocket connection: ws://localhost:3001/ws
+- Authentication: Send token in connection query or first message
+  */
+
+// CONNECTION MESSAGE
+const websocketAuthMessage = {
+“type”: “authenticate”,
+“token”: “your-websocket-token-here”,
+“service”: “credit-service”,
+“version”: “1.0.0”
+};
+
+// SUBSCRIPTION MESSAGE
+const websocketSubscriptionMessage = {
+“type”: “subscribe”,
+“channels”: [“configuration-updates”],
+“filters”: {
+“configType”: “credit”,
+“environment”: “production”
+}
+};
+
+// CONFIGURATION UPDATE EVENT
+const websocketConfigUpdateEvent = {
+“type”: “configuration-updated”,
+“timestamp”: “2025-06-22T10:15:00.000Z”,
+“data”: {
+“configType”: “credit”,
+“version”: “1.2.4”,
+“previousVersion”: “1.2.3”,
+“environment”: “production”,
+“updatedBy”: “admin@company.com”,
+“reason”: “Quarterly limit increase”,
+“changes”: [
+{
+“field”: “overdraft.maxAmount”,
+“oldValue”: 1000000,
+“newValue”: 1200000
+}
+]
+}
+};
+
+// HEARTBEAT MESSAGE
+const websocketHeartbeat = {
+“type”: “heartbeat”,
+“timestamp”: “2025-06-22T10:00:00.000Z”,
+“data”: {
+“status”: “connected”,
+“subscribedChannels”: [“configuration-updates”]
+}
+};
+
+/**
+
+- =============================================================================
+- HTTP STATUS CODES SUMMARY
+- =============================================================================
+- 200 OK - Request successful
+- 201 Created - Configuration created successfully
+- 400 Bad Request - Invalid request data or validation error
+- 401 Unauthorized - Missing or invalid authentication
+- 403 Forbidden - Insufficient permissions
+- 404 Not Found - Configuration or resource not found
+- 409 Conflict - Version conflict or concurrent modification
+- 429 Too Many Requests - Rate limit exceeded
+- 500 Internal Server Error - Server error
+- 503 Service Unavailable - Service temporarily unavailable
+  */
+
+/**
+
+- =============================================================================
+- RATE LIMITING
+- =============================================================================
+- Implement rate limiting on all endpoints:
+- - GET endpoints: 100 requests per minute per API key
+- - PUT/POST endpoints: 20 requests per minute per API key
+- - WebSocket connections: 5 concurrent connections per API key
+    */
+
+/**
+
+- =============================================================================
+- CACHING HEADERS
+- =============================================================================
+- Include appropriate caching headers in responses:
+- - Cache-Control: public, max-age=300 (for GET configuration)
+- - ETag: “<version-hash>” (for cache validation)
+- - Last-Modified: “<last-updated-timestamp>”
+    */
+
+module.exports = {
+getCreditConfigurationResponse,
+updateCreditConfigurationRequest,
+updateCreditConfigurationResponse,
+getConfigurationHistoryResponse,
+rollbackConfigurationRequest,
+rollbackConfigurationResponse,
+healthCheckResponse,
+healthCheckDegradedResponse,
+websocketConfigUpdateEvent,
+errorResponses,
+updateErrorResponses
+};

@@ -1,0 +1,779 @@
+const express = require(‘express’);
+const router = express.Router();
+const Joi = require(‘joi’);
+const rateLimit = require(‘express-rate-limit’);
+const { AppError, ErrorCodes } = require(’../utils/errors’);
+const logger = require(’../utils/logger’);
+const ConfigService = require(’../services/configService’);
+
+// Configuration cache with TTL
+let configCache = {
+data: null,
+lastFetch: 0,
+ttl: 5 * 60 * 1000 // 5 minutes TTL
+};
+
+/**
+
+- Get current configuration with caching
+- @returns {Promise<Object>} Configuration object
+  */
+  const getConfig = async () => {
+  const now = Date.now();
+
+// Return cached config if still valid
+if (configCache.data && (now - configCache.lastFetch) < configCache.ttl) {
+return configCache.data;
+}
+
+try {
+// Fetch fresh config from back office
+const config = await ConfigService.getCreditConfiguration();
+
+```
+// Update cache
+configCache.data = config;
+configCache.lastFetch = now;
+
+logger.info('Configuration refreshed from back office', {
+  timestamp: new Date().toISOString(),
+  configVersion: config.version
+});
+
+return config;
+```
+
+} catch (error) {
+logger.error(‘Failed to fetch configuration from back office’, {
+error: error.message,
+timestamp: new Date().toISOString()
+});
+
+```
+// Return cached config as fallback, or default values
+if (configCache.data) {
+  logger.warn('Using cached configuration due to fetch failure');
+  return configCache.data;
+}
+
+// Fallback to default configuration
+logger.warn('Using default configuration due to fetch failure');
+return getDefaultConfig();
+```
+
+}
+};
+
+/**
+
+- Default configuration fallback
+- @returns {Object} Default configuration
+  */
+  const getDefaultConfig = () => ({
+  version: ‘default’,
+  overdraft: {
+  maxAmount: 1000000,
+  purposeMaxLength: 200,
+  rateLimit: {
+  windowMs: 10 * 60 * 1000,
+  maxRequests: 5
+  }
+  },
+  credit: {
+  maxAmount: 5000000,
+  minTermMonths: 3,
+  maxTermMonths: 12,
+  purposeMaxLength: 500,
+  rateLimit: {
+  windowMs: 15 * 60 * 1000,
+  maxRequests: 3
+  }
+  },
+  repayment: {
+  rateLimit: {
+  windowMs: 5 * 60 * 1000,
+  maxRequests: 10
+  },
+  allowedPaymentMethods: [‘bank_transfer’, ‘card’, ‘wallet’]
+  },
+  facilities: {
+  maxPageSize: 50,
+  defaultPageSize: 10
+  },
+  general: {
+  configCacheTtl: 5 * 60 * 1000,
+  enableDetailedLogging: true,
+  requirePurposeForOverdraft: false
+  }
+  });
+
+/**
+
+- Create dynamic rate limiter based on configuration
+- @param {string} type - Type of rate limit (overdraft, credit, repayment)
+- @returns {Function} Rate limiter middleware
+  */
+  const createDynamicRateLimiter = (type) => {
+  return async (req, res, next) => {
+  try {
+  const config = await getConfig();
+  const rateLimitConfig = config[type]?.rateLimit;
+  
+  if (!rateLimitConfig) {
+  return next();
+  }
+  
+  const limiter = rateLimit({
+  windowMs: rateLimitConfig.windowMs,
+  max: rateLimitConfig.maxRequests,
+  message: {
+  success: false,
+  message: `Too many ${type} requests, please try again later`,
+  retryAfter: Math.ceil(rateLimitConfig.windowMs / 1000),
+  timestamp: new Date().toISOString()
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `${type}_${req.ip}_${req.user?.id || 'anonymous'}`,
+  skip: (req) => {
+  // Skip rate limiting for admin users if configured
+  return config.general?.skipRateLimitForAdmins && req.user?.role === ‘admin’;
+  }
+  });
+  
+  return limiter(req, res, next);
+  } catch (error) {
+  logger.error(‘Error in dynamic rate limiter’, { type, error: error.message });
+  // Continue without rate limiting if config fetch fails
+  next();
+  }
+  };
+  };
+
+/**
+
+- Create dynamic validation schema based on configuration
+- @param {string} type - Type of validation (overdraft, credit, repayment)
+- @returns {Promise<Joi.Schema>} Validation schema
+  */
+  const createDynamicSchema = async (type) => {
+  const config = await getConfig();
+
+switch (type) {
+case ‘overdraft’:
+return Joi.object({
+amount: Joi.number()
+.positive()
+.max(config.overdraft.maxAmount)
+.precision(2)
+.required()
+.messages({
+‘number.positive’: ‘Amount must be a positive number’,
+‘number.max’: `Amount cannot exceed ${config.overdraft.maxAmount.toLocaleString()}`,
+‘number.precision’: ‘Amount can have at most 2 decimal places’
+}),
+purpose: config.general.requirePurposeForOverdraft
+? Joi.string()
+.trim()
+.max(config.overdraft.purposeMaxLength)
+.pattern(/^[a-zA-Z0-9\s.,!?-]+$/)
+.required()
+.messages({
+‘string.pattern.base’: ‘Purpose contains invalid characters’,
+‘string.max’: `Purpose cannot exceed ${config.overdraft.purposeMaxLength} characters`,
+‘any.required’: ‘Purpose is required’
+})
+: Joi.string()
+.trim()
+.max(config.overdraft.purposeMaxLength)
+.pattern(/^[a-zA-Z0-9\s.,!?-]+$/)
+.optional()
+.messages({
+‘string.pattern.base’: ‘Purpose contains invalid characters’,
+‘string.max’: `Purpose cannot exceed ${config.overdraft.purposeMaxLength} characters`
+})
+});
+
+```
+case 'credit':
+  return Joi.object({
+    amount: Joi.number()
+      .positive()
+      .max(config.credit.maxAmount)
+      .precision(2)
+      .required()
+      .messages({
+        'number.positive': 'Amount must be a positive number',
+        'number.max': `Amount cannot exceed ${config.credit.maxAmount.toLocaleString()}`,
+        'number.precision': 'Amount can have at most 2 decimal places'
+      }),
+    termMonths: Joi.number()
+      .integer()
+      .min(config.credit.minTermMonths)
+      .max(config.credit.maxTermMonths)
+      .required()
+      .messages({
+        'number.min': `Term must be at least ${config.credit.minTermMonths} months`,
+        'number.max': `Term cannot exceed ${config.credit.maxTermMonths} months`
+      }),
+    purpose: Joi.string()
+      .trim()
+      .max(config.credit.purposeMaxLength)
+      .pattern(/^[a-zA-Z0-9\s.,!?-]+$/)
+      .required()
+      .messages({
+        'string.pattern.base': 'Purpose contains invalid characters',
+        'string.max': `Purpose cannot exceed ${config.credit.purposeMaxLength} characters`,
+        'any.required': 'Purpose is required for credit applications'
+      })
+  });
+
+case 'repayment':
+  return Joi.object({
+    facilityId: Joi.number()
+      .integer()
+      .positive()
+      .required()
+      .messages({
+        'number.positive': 'Facility ID must be a positive number',
+        'any.required': 'Facility ID is required'
+      }),
+    amount: Joi.number()
+      .positive()
+      .precision(2)
+      .required()
+      .messages({
+        'number.positive': 'Repayment amount must be positive',
+        'number.precision': 'Amount can have at most 2 decimal places'
+      }),
+    paymentMethod: Joi.string()
+      .valid(...config.repayment.allowedPaymentMethods)
+      .optional()
+      .messages({
+        'any.only': `Payment method must be one of: ${config.repayment.allowedPaymentMethods.join(', ')}`
+      })
+  });
+
+default:
+  throw new Error(`Unknown validation type: ${type}`);
+```
+
+}
+};
+
+/**
+
+- Create dynamic query validation schema
+- @returns {Promise<Joi.Schema>} Query validation schema
+  */
+  const createDynamicQuerySchema = async () => {
+  const config = await getConfig();
+
+return Joi.object({
+page: Joi.number().integer().min(1).default(1),
+limit: Joi.number()
+.integer()
+.min(1)
+.max(config.facilities.maxPageSize)
+.default(config.facilities.defaultPageSize),
+status: Joi.string().valid(‘active’, ‘closed’, ‘pending’).optional(),
+type: Joi.string().valid(‘overdraft’, ‘credit’).optional()
+});
+};
+
+// Utility functions
+const validateRequest = (type) => {
+return async (req, res, next) => {
+try {
+const schema = await createDynamicSchema(type);
+const { error, value } = schema.validate(req.body);
+
+```
+  if (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.details[0].message,
+      field: error.details[0].path[0],
+      timestamp: new Date().toISOString()
+    });
+  }
+  
+  req.validatedBody = value;
+  next();
+} catch (error) {
+  logger.error('Validation error', { type, error: error.message });
+  return res.status(500).json({
+    success: false,
+    message: 'Validation configuration error',
+    timestamp: new Date().toISOString()
+  });
+}
+```
+
+};
+};
+
+const validateQuery = () => {
+return async (req, res, next) => {
+try {
+const schema = await createDynamicQuerySchema();
+const { error, value } = schema.validate(req.query);
+
+```
+  if (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.details[0].message,
+      field: error.details[0].path[0],
+      timestamp: new Date().toISOString()
+    });
+  }
+  
+  req.validatedQuery = value;
+  next();
+} catch (error) {
+  logger.error('Query validation error', { error: error.message });
+  return res.status(500).json({
+    success: false,
+    message: 'Query validation configuration error',
+    timestamp: new Date().toISOString()
+  });
+}
+```
+
+};
+};
+
+const sendSuccessResponse = (res, message, data = null, statusCode = 200) => {
+const response = {
+success: true,
+message,
+timestamp: new Date().toISOString()
+};
+
+if (data !== null) {
+response.data = data;
+}
+
+res.status(statusCode).json(response);
+};
+
+const handleRouteError = (error, res, defaultMessage) => {
+logger.error(‘Credit route error’, {
+error: error.message,
+stack: error.stack,
+timestamp: new Date().toISOString()
+});
+
+if (error instanceof AppError) {
+return res.status(error.statusCode || 400).json({
+success: false,
+message: error.message,
+code: error.code,
+timestamp: new Date().toISOString()
+});
+}
+
+return res.status(500).json({
+success: false,
+message: defaultMessage,
+timestamp: new Date().toISOString()
+});
+};
+
+const logRequest = (action) => {
+return async (req, res, next) => {
+try {
+const config = await getConfig();
+
+```
+  if (config.general.enableDetailedLogging) {
+    logger.info(`${action} initiated`, {
+      userId: req.user.id,
+      ip: req.ip,
+      userAgent: req.get('User-Agent'),
+      timestamp: new Date().toISOString(),
+      action,
+      configVersion: config.version
+    });
+  }
+  
+  next();
+} catch (error) {
+  // Continue without logging if config fetch fails
+  next();
+}
+```
+
+};
+};
+
+module.exports = (creditService, authMiddleware) => {
+
+/**
+
+- Health check endpoint
+- @route GET /api/credit/health
+- @returns {Object} Service health status
+  */
+  router.get(’/health’, async (req, res) => {
+  try {
+  const config = await getConfig();
+  sendSuccessResponse(res, ‘Credit service is healthy’, {
+  service: ‘credit-service’,
+  version: process.env.APP_VERSION || ‘1.0.0’,
+  uptime: process.uptime(),
+  configVersion: config.version,
+  configLastFetch: new Date(configCache.lastFetch).toISOString()
+  });
+  } catch (error) {
+  res.status(503).json({
+  success: false,
+  message: ‘Service degraded - configuration unavailable’,
+  timestamp: new Date().toISOString()
+  });
+  }
+  });
+
+/**
+
+- Get current configuration limits (for front-end display)
+- @route GET /api/credit/config
+- @returns {Object} Public configuration limits
+  */
+  router.get(’/config’, authMiddleware, async (req, res) => {
+  try {
+  const config = await getConfig();
+  
+  // Return only public configuration data
+  const publicConfig = {
+  overdraft: {
+  maxAmount: config.overdraft.maxAmount,
+  purposeMaxLength: config.overdraft.purposeMaxLength,
+  purposeRequired: config.general.requirePurposeForOverdraft
+  },
+  credit: {
+  maxAmount: config.credit.maxAmount,
+  minTermMonths: config.credit.minTermMonths,
+  maxTermMonths: config.credit.maxTermMonths,
+  purposeMaxLength: config.credit.purposeMaxLength
+  },
+  repayment: {
+  allowedPaymentMethods: config.repayment.allowedPaymentMethods
+  },
+  facilities: {
+  maxPageSize: config.facilities.maxPageSize,
+  defaultPageSize: config.facilities.defaultPageSize
+  }
+  };
+  
+  sendSuccessResponse(res, ‘Configuration retrieved successfully’, publicConfig);
+  } catch (error) {
+  handleRouteError(error, res, ‘Failed to retrieve configuration’);
+  }
+  });
+
+/**
+
+- Force refresh configuration cache (admin only)
+- @route POST /api/credit/config/refresh
+- @returns {Object} Refresh status
+  */
+  router.post(’/config/refresh’, authMiddleware, async (req, res) => {
+  try {
+  // Check if user has admin privileges
+  if (req.user.role !== ‘admin’) {
+  return res.status(403).json({
+  success: false,
+  message: ‘Insufficient privileges to refresh configuration’,
+  timestamp: new Date().toISOString()
+  });
+  }
+  
+  // Force cache refresh
+  configCache.lastFetch = 0;
+  const config = await getConfig();
+  
+  logger.info(‘Configuration manually refreshed’, {
+  userId: req.user.id,
+  configVersion: config.version,
+  timestamp: new Date().toISOString()
+  });
+  
+  sendSuccessResponse(res, ‘Configuration refreshed successfully’, {
+  version: config.version,
+  refreshedAt: new Date().toISOString()
+  });
+  } catch (error) {
+  handleRouteError(error, res, ‘Failed to refresh configuration’);
+  }
+  });
+
+/**
+
+- Request an overdraft facility
+- @route POST /api/credit/overdraft
+- @param {number} amount - The overdraft amount
+- @param {string} [purpose] - Purpose of the overdraft
+- @returns {Object} Overdraft facility details
+  */
+  router.post(’/overdraft’,
+  createDynamicRateLimiter(‘overdraft’),
+  authMiddleware,
+  logRequest(‘Overdraft request’),
+  validateRequest(‘overdraft’),
+  async (req, res) => {
+  try {
+  const result = await creditService.requestOverdraft(
+  req.user.id,
+  req.validatedBody.amount,
+  req.ip,
+  req.validatedBody.purpose
+  );
+  
+  const config = await getConfig();
+  if (config.general.enableDetailedLogging) {
+  logger.info(‘Overdraft request successful’, {
+  userId: req.user.id,
+  amount: req.validatedBody.amount,
+  facilityId: result.id,
+  configVersion: config.version
+  });
+  }
+  
+  sendSuccessResponse(res, ‘Overdraft facility approved’, result, 201);
+  } catch (error) {
+  handleRouteError(error, res, ‘Failed to process overdraft request’);
+  }
+  }
+  );
+
+/**
+
+- Request a credit facility
+- @route POST /api/credit/credit
+- @param {number} amount - The credit amount
+- @param {number} termMonths - Term in months
+- @param {string} purpose - Purpose of the credit
+- @returns {Object} Credit application details
+  */
+  router.post(’/credit’,
+  createDynamicRateLimiter(‘credit’),
+  authMiddleware,
+  logRequest(‘Credit request’),
+  validateRequest(‘credit’),
+  async (req, res) => {
+  try {
+  const result = await creditService.requestCredit(
+  req.user.id,
+  req.validatedBody.amount,
+  req.validatedBody.termMonths,
+  req.validatedBody.purpose,
+  req.ip
+  );
+  
+  const config = await getConfig();
+  if (config.general.enableDetailedLogging) {
+  logger.info(‘Credit request successful’, {
+  userId: req.user.id,
+  amount: req.validatedBody.amount,
+  termMonths: req.validatedBody.termMonths,
+  applicationId: result.id,
+  configVersion: config.version
+  });
+  }
+  
+  sendSuccessResponse(res, ‘Credit application submitted successfully’, result, 201);
+  } catch (error) {
+  handleRouteError(error, res, ‘Failed to process credit request’);
+  }
+  }
+  );
+
+/**
+
+- Get user’s credit facilities with pagination and filtering
+- @route GET /api/credit/facilities
+- @query {number} [page=1] - Page number
+- @query {number} [limit] - Items per page (max configurable)
+- @query {string} [status] - Filter by status (active, closed, pending)
+- @query {string} [type] - Filter by type (overdraft, credit)
+- @returns {Object} Paginated list of credit facilities
+  */
+  router.get(’/facilities’,
+  authMiddleware,
+  validateQuery(),
+  async (req, res) => {
+  try {
+  const facilities = await creditService.getUserCreditFacilities(
+  req.user.id,
+  req.validatedQuery
+  );
+  
+  const config = await getConfig();
+  if (config.general.enableDetailedLogging) {
+  logger.info(‘Facilities retrieved’, {
+  userId: req.user.id,
+  page: req.validatedQuery.page,
+  limit: req.validatedQuery.limit,
+  totalFacilities: facilities.total,
+  configVersion: config.version
+  });
+  }
+  
+  sendSuccessResponse(res, ‘Facilities retrieved successfully’, facilities);
+  } catch (error) {
+  handleRouteError(error, res, ‘Failed to retrieve credit facilities’);
+  }
+  }
+  );
+
+/**
+
+- Get specific credit facility details
+- @route GET /api/credit/facilities/:facilityId
+- @param {number} facilityId - The facility ID
+- @returns {Object} Credit facility details
+  */
+  router.get(’/facilities/:facilityId’,
+  authMiddleware,
+  async (req, res) => {
+  try {
+  const facilityId = parseInt(req.params.facilityId);
+  
+  if (!facilityId || facilityId <= 0) {
+  return res.status(400).json({
+  success: false,
+  message: ‘Invalid facility ID’,
+  timestamp: new Date().toISOString()
+  });
+  }
+  
+  const facility = await creditService.getCreditFacility(facilityId, req.user.id);
+  
+  if (!facility) {
+  return res.status(404).json({
+  success: false,
+  message: ‘Credit facility not found’,
+  timestamp: new Date().toISOString()
+  });
+  }
+  
+  sendSuccessResponse(res, ‘Facility details retrieved successfully’, facility);
+  } catch (error) {
+  handleRouteError(error, res, ‘Failed to retrieve facility details’);
+  }
+  }
+  );
+
+/**
+
+- Process a repayment
+- @route POST /api/credit/repayment
+- @param {number} facilityId - The facility ID to repay
+- @param {number} amount - The repayment amount
+- @param {string} [paymentMethod] - Payment method (configurable options)
+- @returns {Object} Repayment transaction details
+  */
+  router.post(’/repayment’,
+  createDynamicRateLimiter(‘repayment’),
+  authMiddleware,
+  logRequest(‘Repayment request’),
+  validateRequest(‘repayment’),
+  async (req, res) => {
+  try {
+  const result = await creditService.processRepayment(
+  req.validatedBody.facilityId,
+  req.validatedBody.amount,
+  req.user.id,
+  req.ip,
+  req.validatedBody.paymentMethod
+  );
+  
+  const config = await getConfig();
+  if (config.general.enableDetailedLogging) {
+  logger.info(‘Repayment processed successfully’, {
+  userId: req.user.id,
+  facilityId: req.validatedBody.facilityId,
+  amount: req.validatedBody.amount,
+  transactionId: result.transactionId,
+  configVersion: config.version
+  });
+  }
+  
+  sendSuccessResponse(res, ‘Repayment processed successfully’, result, 201);
+  } catch (error) {
+  handleRouteError(error, res, ‘Failed to process repayment’);
+  }
+  }
+  );
+
+/**
+
+- Get repayment history for a facility
+- @route GET /api/credit/facilities/:facilityId/repayments
+- @param {number} facilityId - The facility ID
+- @query {number} [page=1] - Page number
+- @query {number} [limit] - Items per page
+- @returns {Object} Paginated repayment history
+  */
+  router.get(’/facilities/:facilityId/repayments’,
+  authMiddleware,
+  validateQuery(),
+  async (req, res) => {
+  try {
+  const facilityId = parseInt(req.params.facilityId);
+  
+  if (!facilityId || facilityId <= 0) {
+  return res.status(400).json({
+  success: false,
+  message: ‘Invalid facility ID’,
+  timestamp: new Date().toISOString()
+  });
+  }
+  
+  const repayments = await creditService.getRepaymentHistory(
+  facilityId,
+  req.user.id,
+  req.validatedQuery
+  );
+  
+  sendSuccessResponse(res, ‘Repayment history retrieved successfully’, repayments);
+  } catch (error) {
+  handleRouteError(error, res, ‘Failed to retrieve repayment history’);
+  }
+  }
+  );
+
+/**
+
+- Calculate repayment schedule
+- @route GET /api/credit/facilities/:facilityId/schedule
+- @param {number} facilityId - The facility ID
+- @returns {Object} Repayment schedule details
+  */
+  router.get(’/facilities/:facilityId/schedule’,
+  authMiddleware,
+  async (req, res) => {
+  try {
+  const facilityId = parseInt(req.params.facilityId);
+  
+  if (!facilityId || facilityId <= 0) {
+  return res.status(400).json({
+  success: false,
+  message: ‘Invalid facility ID’,
+  timestamp: new Date().toISOString()
+  });
+  }
+  
+  const schedule = await creditService.getRepaymentSchedule(facilityId, req.user.id);
+  
+  sendSuccessResponse(res, ‘Repayment schedule retrieved successfully’, schedule);
+  } catch (error) {
+  handleRouteError(error, res, ‘Failed to retrieve repayment schedule’);
+  }
+  }
+  );
+
+return router;
+};

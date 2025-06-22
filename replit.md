@@ -182,6 +182,15 @@ A comprehensive mobile neobank application for Rwanda featuring:
   - Tests automatisés avec génération de données de test (10 utilisateurs, 100 transactions)
   - Guide d'intégration UI/UX pour personnalisation du design
   - Support des wallets avec montant initial paramétrable
+- 2025-06-22: CONFIGURATION DYNAMIQUE IMPLÉMENTÉE:
+  - Service de configuration centralisé avec cache intelligent et fallback
+  - Routes de crédit avec validation dynamique basée sur la configuration back-office
+  - API back-office complète avec endpoints pour configuration et historique
+  - Rate limiting configurable par type d'opération (découvert, crédit, remboursement)
+  - Validation Joi dynamique avec limites ajustables en temps réel
+  - Système d'audit complet avec historique des changements de configuration
+  - Health checks intégrés pour monitoring de la connectivité back-office
+  - Variables d'environnement configurées pour intégration complète
 
 ## User Preferences
 - Focus on authentic data integration
