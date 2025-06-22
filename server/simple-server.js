@@ -3,34 +3,38 @@ const cors = require('cors');
 const { Client } = require('pg');
 
 const app = express();
-const PORT = process.env.PORT || 8000;
-const HOST = process.env.HOST || '0.0.0.0';
+// Render uses PORT 10000 by default
+const PORT = process.env.PORT || 10000;
+const HOST = '0.0.0.0';
 
-// Environment variables
-process.env.NODE_ENV = 'production';
-process.env.DATABASE_URL = 'postgresql://postgres.tzwzmzakxgatyvhvngez:Xentrika2025!@aws-0-eu-west-3.pooler.supabase.com:6543/postgres';
-process.env.JWT_SECRET = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6d3ptemFreGdhdHl2aHZuZ2V6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAzODUwOTAsImV4cCI6MjA2NTk2MTA5MH0.623RCZAPWUGJlQgsfYRXS3E6riACjb2MLJACOZ2gHPc';
+// Environment variables - Use Render's DATABASE_URL if available
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres.tzwzmzakxgatyvhvngez:Xentrika2025!@aws-0-eu-west-3.pooler.supabase.com:6543/postgres';
+const JWT_SECRET = process.env.JWT_SECRET || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6d3ptemFreGdhdHl2aHZuZ2V6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAzODUwOTAsImV4cCI6MjA2NTk2MTA5MH0.623RCZAPWUGJlQgsfYRXS3E6riACjb2MLJACOZ2gHPc';
+
+console.log('🚀 Centrika Banking API Starting...');
+console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+console.log(`Port: ${PORT}`);
+console.log(`Database: ${DATABASE_URL.includes('render') ? 'Render PostgreSQL' : 'External Database'}`);
 
 // Database client
 let dbClient = null;
 
 async function connectDB() {
   try {
-    console.log('🔌 Attempting database connection...');
+    console.log('🔌 Connecting to database...');
     dbClient = new Client({
-      connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false },
-      connectionTimeoutMillis: 5000, // 5 second timeout
+      connectionString: DATABASE_URL,
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+      connectionTimeoutMillis: 10000,
     });
 
-    // Add connection timeout
-    const connectionPromise = dbClient.connect();
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Connection timeout after 8 seconds')), 8000)
-    );
+    await dbClient.connect();
+    console.log('✅ Database connected successfully');
 
-    await Promise.race([connectionPromise, timeoutPromise]);
-    console.log('✅ Connected to Supabase database');
+    // Test the connection
+    await dbClient.query('SELECT NOW()');
+    console.log('✅ Database test query successful');
+
     return true;
   } catch (error) {
     console.error('❌ Database connection failed:', error.message);
@@ -47,17 +51,29 @@ async function connectDB() {
 }
 
 // Middleware
-app.use(cors({ origin: '*' }));
-app.use(express.json());
+app.use(cors({ 
+  origin: ['https://centrika-api.onrender.com', 'http://localhost:3000', 'http://localhost:5001', '*'],
+  credentials: true 
+}));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
 
-// Health check
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  next();
+});
+
+// Health check endpoints
 app.get('/', (req, res) => {
   res.json({
     service: 'Centrika Neobank API',
     status: 'running',
     version: '1.0.0',
     timestamp: new Date().toISOString(),
-    database: dbClient ? 'connected' : 'disconnected'
+    database: dbClient ? 'connected' : 'disconnected',
+    environment: process.env.NODE_ENV || 'development',
+    port: PORT
   });
 });
 
@@ -65,7 +81,17 @@ app.get('/health', (req, res) => {
   res.json({ 
     status: 'healthy', 
     timestamp: new Date().toISOString(),
-    database: dbClient ? 'connected' : 'disconnected'
+    database: dbClient ? 'connected' : 'disconnected',
+    uptime: process.uptime()
+  });
+});
+
+// Test endpoint for quick verification
+app.get('/test', (req, res) => {
+  res.json({
+    message: 'Centrika API is working!',
+    timestamp: new Date().toISOString(),
+    headers: req.headers
   });
 });
 
@@ -73,6 +99,8 @@ app.get('/health', (req, res) => {
 app.post('/api/admin/login', async (req, res) => {
   try {
     const { email, password } = req.body;
+
+    console.log('Admin login attempt:', email);
 
     if (!email || !password) {
       return res.status(400).json({
@@ -82,6 +110,7 @@ app.post('/api/admin/login', async (req, res) => {
     }
 
     if (!dbClient) {
+      console.log('Database unavailable for admin login');
       return res.status(500).json({
         success: false,
         message: 'Database connection unavailable'
@@ -94,6 +123,7 @@ app.post('/api/admin/login', async (req, res) => {
     );
 
     if (result.rows.length === 0 || password !== 'password') {
+      console.log('Invalid admin credentials');
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
@@ -108,9 +138,11 @@ app.post('/api/admin/login', async (req, res) => {
         email: admin.email, 
         role: admin.role 
       },
-      process.env.JWT_SECRET,
+      JWT_SECRET,
       { expiresIn: '24h' }
     );
+
+    console.log('Admin login successful:', email);
 
     res.json({
       success: true,
@@ -179,6 +211,8 @@ app.post('/api/auth/register', async (req, res) => {
   try {
     const { firstName, lastName, phone, password } = req.body;
 
+    console.log('Registration attempt:', { firstName, lastName, phone });
+
     if (!firstName || !lastName || !phone || !password) {
       return res.status(400).json({
         success: false,
@@ -209,6 +243,8 @@ app.post('/api/auth/register', async (req, res) => {
       [user.id, '1000.00', 'RWF', true, 1]
     );
 
+    console.log('User registered successfully:', user.id);
+
     res.json({
       success: true,
       message: 'Account created successfully',
@@ -236,6 +272,8 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     const { phone, password } = req.body;
 
+    console.log('Login attempt:', phone);
+
     if (!phone || !password) {
       return res.status(400).json({
         success: false,
@@ -256,6 +294,7 @@ app.post('/api/auth/login', async (req, res) => {
     );
 
     if (result.rows.length === 0) {
+      console.log('User not found:', phone);
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
@@ -267,6 +306,7 @@ app.post('/api/auth/login', async (req, res) => {
     const isValidPassword = await bcrypt.compare(password, user.password_hash);
 
     if (!isValidPassword) {
+      console.log('Invalid password for user:', phone);
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
@@ -276,9 +316,11 @@ app.post('/api/auth/login', async (req, res) => {
     const jwt = require('jsonwebtoken');
     const token = jwt.sign(
       { userId: user.id, phone: user.phone },
-      process.env.JWT_SECRET,
+      JWT_SECRET,
       { expiresIn: '24h' }
     );
+
+    console.log('Login successful:', phone);
 
     res.json({
       success: true,
@@ -302,7 +344,25 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// Start server immediately - don't wait for database
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  res.status(500).json({
+    success: false,
+    message: 'Internal server error'
+  });
+});
+
+// 404 handler
+app.use('*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: 'Endpoint not found',
+    path: req.originalUrl
+  });
+});
+
+// Start server
 async function startServer() {
   console.log('🚀 Starting Centrika Banking Server');
   console.log(`Node version: ${process.version}`);
@@ -313,32 +373,32 @@ async function startServer() {
   // Start HTTP server first
   const server = app.listen(PORT, HOST, () => {
     console.log(`✅ Server running on http://${HOST}:${PORT}`);
-    console.log(`Health check: http://${HOST}:${PORT}/health`);
+    console.log(`🌐 Access your API at: https://your-app-name.onrender.com`);
+    console.log(`📊 Health check: /health`);
+    console.log(`🧪 Test endpoint: /test`);
     console.log(`Available endpoints:`);
-    console.log(`  - GET  ${HOST}:${PORT}/`);
-    console.log(`  - GET  ${HOST}:${PORT}/health`);
-    console.log(`  - POST ${HOST}:${PORT}/api/auth/register`);
-    console.log(`  - POST ${HOST}:${PORT}/api/auth/login`);
-    console.log(`  - POST ${HOST}:${PORT}/api/admin/login`);
-    console.log(`  - GET  ${HOST}:${PORT}/api/admin/metrics`);
+    console.log(`  - GET  /`);
+    console.log(`  - GET  /health`);
+    console.log(`  - GET  /test`);
+    console.log(`  - POST /api/auth/register`);
+    console.log(`  - POST /api/auth/login`);
+    console.log(`  - POST /api/admin/login`);
+    console.log(`  - GET  /api/admin/metrics`);
   });
 
-  // Connect to database in background - don't block server startup
-  console.log('📡 Attempting database connection in background...');
-  connectDB().then(dbConnected => {
-    console.log(`Database: ${dbConnected ? '✅ Connected' : '❌ Disconnected'}`);
-    if (!dbConnected) {
-      console.log('⚠️  Server running without database - some endpoints will fail');
-      console.log('📝 Note: Visit /health to check status');
-    }
-  }).catch(error => {
-    console.error('💥 Database connection error:', error.message);
-    console.log('⚠️  Server running without database - some endpoints will fail');
-  });
+  // Connect to database
+  console.log('📡 Connecting to database...');
+  const dbConnected = await connectDB();
+
+  if (dbConnected) {
+    console.log('🎉 Centrika API fully operational!');
+  } else {
+    console.log('⚠️  Server running without database - limited functionality');
+  }
 
   // Graceful shutdown
-  process.on('SIGINT', async () => {
-    console.log('\n🛑 Shutting down server...');
+  process.on('SIGTERM', async () => {
+    console.log('🛑 Received SIGTERM, shutting down gracefully...');
     if (dbClient) {
       try {
         await dbClient.end();
@@ -355,6 +415,16 @@ async function startServer() {
 
   return server;
 }
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
 
 // Start the server
 startServer().catch(error => {

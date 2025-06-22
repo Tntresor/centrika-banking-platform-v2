@@ -1,0 +1,13 @@
+
+services:
+  - type: web
+    name: centrika-api
+    env: node
+    plan: free
+    buildCommand: cd server && npm install
+    startCommand: cd server && node simple-server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000

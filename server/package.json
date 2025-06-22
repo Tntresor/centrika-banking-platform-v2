@@ -4,9 +4,10 @@
   "description": "Centrika Banking API Server",
   "main": "simple-server.js",
   "scripts": {
-    "start": "node production-server.js",
+    "start": "node simple-server.js",
     "dev": "node simple-server.js",
-    "deploy": "node production-server.js",
+    "build": "echo 'No build step required'",
+    "deploy": "node simple-server.js",
     "server": "node simple-server.js"
   },
   "dependencies": {
