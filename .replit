@@ -60,11 +60,11 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd server && node optimized-server.js"
+args = "node deploy-server.js"
 waitForPort = 8000
 
 [deployment]
-run = ["sh", "-c", "cd server && npm install && cd ../mobile && npm install && cd ../backoffice && npm install"]
+run = ["sh", "-c", "cd server && npm install && node simple-server.js"]
 deploymentTarget = "cloudrun"
 
 [[ports]]
@@ -73,7 +73,7 @@ externalPort = 3000
 
 [[ports]]
 localPort = 3001
-externalPort = 8008
+externalPort = 8000
 
 [[ports]]
 localPort = 5000
@@ -86,10 +86,6 @@ externalPort = 6800
 [[ports]]
 localPort = 8000
 externalPort = 80
-
-[[ports]]
-localPort = 8001
-externalPort = 8000
 
 [[ports]]
 localPort = 8002
