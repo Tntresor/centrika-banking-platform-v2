@@ -16,14 +16,43 @@ process.env.NODE_ENV = 'production';
 process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres.tzwzmzakxgatyvhvngez:Xentrika2025!@aws-0-eu-west-3.pooler.supabase.com:6543/postgres';
 
 let dbClient = null;
+let isReconnecting = false;
 
-// Database connection with timeout
+// Enhanced database connection with auto-reconnect
 async function initializeDatabase() {
   try {
+    // Clean up existing connection
+    if (dbClient) {
+      try {
+        await dbClient.end();
+      } catch (e) {
+        // Ignore cleanup errors
+      }
+      dbClient = null;
+    }
+
     dbClient = new Client({
       connectionString: process.env.DATABASE_URL,
       ssl: { rejectUnauthorized: false },
       connectionTimeoutMillis: 8000,
+    });
+    
+    // Handle connection errors and reconnection
+    dbClient.on('error', async (err) => {
+      console.error('Database connection error:', err.message);
+      if (!isReconnecting) {
+        isReconnecting = true;
+        console.log('Attempting to reconnect to database...');
+        setTimeout(async () => {
+          await initializeDatabase();
+          isReconnecting = false;
+        }, 5000);
+      }
+    });
+
+    dbClient.on('end', () => {
+      console.log('Database connection ended');
+      dbClient = null;
     });
     
     const connectionPromise = dbClient.connect();
@@ -32,12 +61,32 @@ async function initializeDatabase() {
     );
     
     await Promise.race([connectionPromise, timeoutPromise]);
-    console.log('Database connected');
+    console.log('Database connected successfully');
     return true;
   } catch (error) {
     console.error('Database failed to connect:', error.message);
     dbClient = null;
     return false;
+  }
+}
+
+// Database query wrapper with retry logic
+async function executeQuery(query, params = []) {
+  if (!dbClient) {
+    throw new Error('Database not connected');
+  }
+  
+  try {
+    return await dbClient.query(query, params);
+  } catch (error) {
+    if (error.code === '57P01' || error.code === 'ECONNRESET') {
+      console.log('Connection lost, attempting to reconnect...');
+      await initializeDatabase();
+      if (dbClient) {
+        return await dbClient.query(query, params);
+      }
+    }
+    throw error;
   }
 }
 
@@ -88,14 +137,14 @@ app.post('/api/auth/register', async (req, res) => {
     const bcrypt = require('bcryptjs');
     const hashedPassword = await bcrypt.hash(password, 10);
     
-    const result = await dbClient.query(
+    const result = await executeQuery(
       'INSERT INTO users (first_name, last_name, phone, email, password_hash, kyc_status, is_active, preferred_language) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
       [firstName, lastName, phone, `${phone}@centrika.rw`, hashedPassword, 'pending', true, 'en']
     );
     
     const user = result.rows[0];
     
-    await dbClient.query(
+    await executeQuery(
       'INSERT INTO wallets (user_id, balance, currency, is_active, kyc_level) VALUES ($1, $2, $3, $4, $5)',
       [user.id, '1000.00', 'RWF', true, 1]
     );
@@ -133,7 +182,7 @@ app.post('/api/auth/login', async (req, res) => {
       });
     }
     
-    const result = await dbClient.query(
+    const result = await executeQuery(
       'SELECT * FROM users WHERE phone = $1 AND is_active = true',
       [phone]
     );
@@ -207,15 +256,43 @@ function startServer() {
   return server;
 }
 
-// Error handling
+// Enhanced error handling and graceful shutdown
 process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
-  process.exit(1);
+  console.error('Uncaught Exception:', error.message);
+  console.log('Server continuing to operate...');
+  // Don't exit - let the server continue running
 });
 
 process.on('unhandledRejection', (reason) => {
   console.error('Unhandled Rejection:', reason);
-  process.exit(1);
+  console.log('Server continuing to operate...');
+  // Don't exit - let the server continue running
+});
+
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM received, shutting down gracefully...');
+  if (dbClient) {
+    try {
+      await dbClient.end();
+      console.log('Database connection closed');
+    } catch (e) {
+      console.error('Error closing database:', e.message);
+    }
+  }
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  console.log('SIGINT received, shutting down gracefully...');
+  if (dbClient) {
+    try {
+      await dbClient.end();
+      console.log('Database connection closed');
+    } catch (e) {
+      console.error('Error closing database:', e.message);
+    }
+  }
+  process.exit(0);
 });
 
 // Start the server
