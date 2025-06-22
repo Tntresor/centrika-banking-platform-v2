@@ -25,7 +25,7 @@ args = "Mobile App"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Backend Server"
+args = "Banking API Server"
 
 [[workflows.workflow]]
 name = "Install Dependencies"
@@ -54,13 +54,13 @@ args = "cd mobile && node serve-demo.js"
 waitForPort = 8081
 
 [[workflows.workflow]]
-name = "Backend Server"
+name = "Banking API Server"
 author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd server && npm start"
-waitForPort = 8000
+args = "cd server && node simple-server.js"
+waitForPort = 8007
 
 [deployment]
 run = ["sh", "-c", "cd server && npm install && cd ../mobile && npm install && cd ../backoffice && npm install"]
@@ -77,6 +77,26 @@ externalPort = 80
 [[ports]]
 localPort = 8002
 externalPort = 3001
+
+[[ports]]
+localPort = 8003
+externalPort = 3002
+
+[[ports]]
+localPort = 8004
+externalPort = 3003
+
+[[ports]]
+localPort = 8005
+externalPort = 4200
+
+[[ports]]
+localPort = 8006
+externalPort = 5000
+
+[[ports]]
+localPort = 8007
+externalPort = 5173
 
 [[ports]]
 localPort = 8081

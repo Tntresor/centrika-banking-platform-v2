@@ -11,7 +11,7 @@ process.env.NODE_ENV = 'production';
 
 // Ensure PORT is properly set for deployment
 if (!process.env.PORT) {
-  process.env.PORT = '8000';
+  process.env.PORT = '8003';
 }
 
 // Handle uncaught exceptions

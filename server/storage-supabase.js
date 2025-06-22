@@ -6,15 +6,16 @@ if (!process.env.DATABASE_URL) {
 
 class DatabaseStorage {
   constructor() {
-    this.client = new Client({
-      connectionString: process.env.DATABASE_URL,
-      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-    });
+    this.client = null;
     this.connected = false;
   }
 
   async connect() {
     if (!this.connected) {
+      this.client = new Client({
+        connectionString: process.env.DATABASE_URL,
+        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+      });
       await this.client.connect();
       this.connected = true;
       console.log('Connected to Supabase database');

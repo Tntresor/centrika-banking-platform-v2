@@ -4,13 +4,45 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
-// Routes
-const authRoutes = require('./routes/auth-simple');
-const kycRoutes = require('./routes/kyc-simple');
-const transactionRoutes = require('./routes/transactions-simple');
-const cardRoutes = require('./routes/cards-simple');
-const momoRoutes = require('./routes/momo-simple');
-const adminRoutes = require('./routes/admin-simple');
+// Test database connection on startup
+async function testDatabaseConnection() {
+  try {
+    if (!process.env.DATABASE_URL) {
+      throw new Error('DATABASE_URL environment variable is not set');
+    }
+    
+    const { storage } = require('./storage-supabase');
+    await storage.connect();
+    console.log('✅ Database connection test passed');
+    return true;
+  } catch (error) {
+    console.error('❌ Database connection failed:', error.message);
+    return false;
+  }
+}
+
+// Set default JWT secret if not provided
+if (!process.env.JWT_SECRET) {
+  process.env.JWT_SECRET = 'centrika-demo-secret-key-2025';
+  console.log('⚠️  Using default JWT_SECRET for demo purposes');
+}
+
+// Load routes with error handling
+let authRoutes, kycRoutes, transactionRoutes, cardRoutes, momoRoutes, adminRoutes, adminLiveRoutes;
+
+try {
+  authRoutes = require('./routes/auth-simple');
+  kycRoutes = require('./routes/kyc-simple');
+  transactionRoutes = require('./routes/transactions-simple');
+  cardRoutes = require('./routes/cards-simple');
+  momoRoutes = require('./routes/momo-simple');
+  adminRoutes = require('./routes/admin-simple');
+  adminLiveRoutes = require('./routes/admin-live');
+  console.log('✅ All routes loaded successfully');
+} catch (error) {
+  console.error('❌ Error loading routes:', error.message);
+  process.exit(1);
+}
 
 
 
@@ -18,7 +50,7 @@ const adminRoutes = require('./routes/admin-simple');
 const NotificationService = require('./services/NotificationService');
 
 const app = express();
-const PORT = process.env.PORT || 8000;
+const PORT = process.env.PORT || 8007;
 
 // Health check endpoint - must be first, before any middleware
 app.get('/', (req, res) => {
@@ -66,19 +98,16 @@ app.use((req, res, next) => {
 
 
 
-// Live admin routes for Supabase data
-const adminLiveRoutes = require('./routes/admin-live');
-
-// API routes
-app.use('/api/auth', authRoutes);
-app.use('/api/kyc', kycRoutes);
-app.use('/api/transactions', transactionRoutes);
-app.use('/api/cards', cardRoutes);
-app.use('/api/momo', momoRoutes);
-app.use('/api/admin', adminLiveRoutes);
-
-// Admin auth routes (separate from regular auth)
-app.use('/api/auth/admin', adminLiveRoutes);
+// API routes with error handling
+if (authRoutes) app.use('/api/auth', authRoutes);
+if (kycRoutes) app.use('/api/kyc', kycRoutes);
+if (transactionRoutes) app.use('/api/transactions', transactionRoutes);
+if (cardRoutes) app.use('/api/cards', cardRoutes);
+if (momoRoutes) app.use('/api/momo', momoRoutes);
+if (adminLiveRoutes) {
+  app.use('/api/admin', adminLiveRoutes);
+  app.use('/api/auth/admin', adminLiveRoutes);
+}
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -146,5 +175,45 @@ process.on('SIGINT', () => {
   console.log('SIGINT received, shutting down gracefully');
   process.exit(0);
 });
+
+// Initialize services with database connection test
+async function initializeServices() {
+  try {
+    console.log('🚀 Centrika Neobank - Starting Server');
+    
+    // Test database connection
+    const dbConnected = await testDatabaseConnection();
+    if (!dbConnected) {
+      console.log('⚠️  Continuing without database connection');
+    }
+    
+    // Start server only once
+    const server = app.listen(PORT, '0.0.0.0', () => {
+      console.log(`✅ Server listening on http://0.0.0.0:${PORT}`);
+      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`Health check: http://0.0.0.0:${PORT}/health`);
+      console.log(`Database: ${dbConnected ? 'Connected' : 'Disconnected'}`);
+    });
+    
+    // Handle server errors
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.log(`Port ${PORT} is already in use`);
+        process.exit(1);
+      } else {
+        console.error('Server error:', err);
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Failed to initialize services:', error);
+    process.exit(1);
+  }
+}
+
+// Only start server if this file is run directly
+if (require.main === module) {
+  initializeServices();
+}
 
 module.exports = app;

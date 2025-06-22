@@ -7,6 +7,9 @@ const PORT = 8081;
 const server = http.createServer((req, res) => {
   let filePath = path.join(__dirname, 'interactive-demo.html');
   
+  // Log which file we're trying to serve
+  console.log('Serving file:', filePath);
+  
   // Enable CORS for API calls
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -46,4 +49,5 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Centrika Mobile App Demo running on port ${PORT}`);
   console.log(`Access at: http://localhost:${PORT}`);
+  console.log(`Server listening on 0.0.0.0:${PORT}`);
 });
