@@ -1,21 +1,51 @@
-// server/routes/claude-routes.js
-import express from "express";
-import ClaudeService from "../services/claude-service.js";
-import fs from "fs/promises";
-import path from "path";
+// server/routes/claude-routes.js - CommonJS version
+const express = require("express");
+const fs = require("fs").promises;
+const path = require("path");
 
 const router = express.Router();
 
+// Initialize Anthropic client
+let anthropic = null;
+
+try {
+  const Anthropic = require("@anthropic-ai/sdk");
+  if (process.env.ANTHROPIC_API_KEY) {
+    anthropic = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY,
+    });
+    console.log("✅ Claude AI client initialized");
+  } else {
+    console.log("⚠️  ANTHROPIC_API_KEY not found in environment");
+  }
+} catch (error) {
+  console.log(
+    "⚠️  Anthropic SDK not installed or error loading:",
+    error.message,
+  );
+}
+
+// Helper function to check if Claude is available
+function checkClaude() {
+  if (!anthropic) {
+    throw new Error(
+      "Claude AI not available. Check ANTHROPIC_API_KEY and SDK installation.",
+    );
+  }
+}
+
 // Code Review Endpoint
 router.post("/code-review", async (req, res) => {
-    try {
-        const { filePath, codeContent, reviewType } = req.body;
+  try {
+    checkClaude();
 
-        const reviewPrompt = `Please review this banking application code for:
+    const { filePath, codeContent, reviewType } = req.body;
+
+    const reviewPrompt = `Please review this banking application code for:
 
 ${
-    reviewType === "security"
-        ? `
+  reviewType === "security"
+    ? `
 SECURITY REVIEW:
 - Authentication vulnerabilities
 - Data validation issues  
@@ -24,12 +54,12 @@ SECURITY REVIEW:
 - Sensitive data exposure
 - Authorization flaws
 `
-        : ""
+    : ""
 }
 
 ${
-    reviewType === "performance"
-        ? `
+  reviewType === "performance"
+    ? `
 PERFORMANCE REVIEW:
 - Database query optimization
 - Memory usage issues
@@ -37,12 +67,12 @@ PERFORMANCE REVIEW:
 - Caching opportunities
 - Resource management
 `
-        : ""
+    : ""
 }
 
 ${
-    reviewType === "architecture"
-        ? `
+  reviewType === "architecture"
+    ? `
 ARCHITECTURE REVIEW:
 - Code organization
 - Design patterns
@@ -50,7 +80,7 @@ ARCHITECTURE REVIEW:
 - Maintainability
 - Best practices adherence
 `
-        : ""
+    : ""
 }
 
 Code to review:
@@ -60,55 +90,58 @@ ${codeContent}
 
 Provide specific, actionable recommendations.`;
 
-        const result = await ClaudeService.anthropic.messages.create({
-            model: "claude-3-sonnet-20240229",
-            max_tokens: 2000,
-            temperature: 0.3,
-            messages: [{ role: "user", content: reviewPrompt }],
-        });
+    const result = await anthropic.messages.create({
+      model: "claude-3-5-sonnet-20241022",
+      max_tokens: 2000,
+      temperature: 0.3,
+      messages: [{ role: "user", content: reviewPrompt }],
+    });
 
-        res.json({
-            success: true,
-            filePath,
-            reviewType,
-            review: result.content[0].text,
-            timestamp: new Date().toISOString(),
-        });
-    } catch (error) {
-        console.error("Code review error:", error);
-        res.status(500).json({
-            success: false,
-            error: "Code review failed",
-        });
-    }
+    res.json({
+      success: true,
+      filePath,
+      reviewType,
+      review: result.content[0].text,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Code review error:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message || "Code review failed",
+    });
+  }
 });
 
 // Full Codebase Analysis
 router.post("/analyze-codebase", async (req, res) => {
-    try {
-        const { projectPath = "./server" } = req.body;
+  try {
+    checkClaude();
 
-        // Read key files for analysis
-        const keyFiles = [
-            "index.js",
-            "routes/auth.js",
-            "storage-supabase.js",
-            "package.json",
-        ];
+    const { projectPath = "./server" } = req.body;
 
-        let codebaseOverview = "";
+    // Read key files for analysis
+    const keyFiles = [
+      "index.js",
+      "routes/auth-simple.js",
+      "storage-supabase.js",
+      "package.json",
+    ];
 
-        for (const file of keyFiles) {
-            try {
-                const filePath = path.join(projectPath, file);
-                const content = await fs.readFile(filePath, "utf8");
-                codebaseOverview += `\n\n=== ${file} ===\n${content.slice(0, 1000)}...`;
-            } catch (err) {
-                console.log(`Could not read ${file}:`, err.message);
-            }
-        }
+    let codebaseOverview = "";
 
-        const analysisPrompt = `Analyze this banking platform codebase:
+    for (const file of keyFiles) {
+      try {
+        // Fix file path - we're already in the server directory
+        const filePath = path.join("./", file);
+        const content = await fs.readFile(filePath, "utf8");
+        codebaseOverview += `\n\n=== ${file} ===\n${content.slice(0, 1000)}...`;
+      } catch (err) {
+        console.log(`Could not read ${file}:`, err.message);
+      }
+    }
+
+    const analysisPrompt = `Analyze this banking platform codebase:
 
 ${codebaseOverview}
 
@@ -122,32 +155,34 @@ Provide:
 
 Focus on banking-specific concerns: data security, transaction integrity, compliance.`;
 
-        const result = await ClaudeService.anthropic.messages.create({
-            model: "claude-3-sonnet-20240229",
-            max_tokens: 3000,
-            temperature: 0.2,
-            messages: [{ role: "user", content: analysisPrompt }],
-        });
+    const result = await anthropic.messages.create({
+      model: "claude-3-5-sonnet-20241022",
+      max_tokens: 3000,
+      temperature: 0.2,
+      messages: [{ role: "user", content: analysisPrompt }],
+    });
 
-        res.json({
-            success: true,
-            analysis: result.content[0].text,
-            analyzedFiles: keyFiles,
-            timestamp: new Date().toISOString(),
-        });
-    } catch (error) {
-        console.error("Codebase analysis error:", error);
-        res.status(500).json({
-            success: false,
-            error: "Codebase analysis failed",
-        });
-    }
+    res.json({
+      success: true,
+      analysis: result.content[0].text,
+      analyzedFiles: keyFiles,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Codebase analysis error:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message || "Codebase analysis failed",
+    });
+  }
 });
 
 // Security Audit
 router.post("/security-audit", async (req, res) => {
-    try {
-        const securityPrompt = `Perform a security audit of this banking platform architecture:
+  try {
+    checkClaude();
+
+    const securityPrompt = `Perform a security audit of this banking platform architecture:
 
 Components:
 - Node.js/Express API server
@@ -173,35 +208,37 @@ Provide:
 - Specific remediation steps
 - Best practices recommendations`;
 
-        const result = await ClaudeService.anthropic.messages.create({
-            model: "claude-3-sonnet-20240229",
-            max_tokens: 2500,
-            temperature: 0.1,
-            messages: [{ role: "user", content: securityPrompt }],
-        });
+    const result = await anthropic.messages.create({
+      model: "claude-3-5-sonnet-20241022",
+      max_tokens: 2500,
+      temperature: 0.1,
+      messages: [{ role: "user", content: securityPrompt }],
+    });
 
-        res.json({
-            success: true,
-            securityAudit: result.content[0].text,
-            auditType: "comprehensive",
-            timestamp: new Date().toISOString(),
-        });
-    } catch (error) {
-        console.error("Security audit error:", error);
-        res.status(500).json({
-            success: false,
-            error: "Security audit failed",
-        });
-    }
+    res.json({
+      success: true,
+      securityAudit: result.content[0].text,
+      auditType: "comprehensive",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Security audit error:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message || "Security audit failed",
+    });
+  }
 });
 
 // Code Optimization Suggestions
 router.post("/optimize", async (req, res) => {
-    try {
-        const { codeContent, optimizationType } = req.body;
+  try {
+    checkClaude();
 
-        const optimizationPrompts = {
-            performance: `Optimize this banking code for performance:
+    const { codeContent, optimizationType } = req.body;
+
+    const optimizationPrompts = {
+      performance: `Optimize this banking code for performance:
 ${codeContent}
 
 Focus on:
@@ -210,7 +247,7 @@ Focus on:
 - Memory usage reduction
 - API response time improvement`,
 
-            security: `Enhance security in this banking code:
+      security: `Enhance security in this banking code:
 ${codeContent}
 
 Focus on:
@@ -219,7 +256,7 @@ Focus on:
 - Data sanitization
 - Secure coding practices`,
 
-            maintainability: `Improve code maintainability:
+      maintainability: `Improve code maintainability:
 ${codeContent}
 
 Focus on:
@@ -227,32 +264,40 @@ Focus on:
 - Documentation
 - Error handling
 - Testing strategies`,
-        };
+    };
 
-        const prompt =
-            optimizationPrompts[optimizationType] ||
-            optimizationPrompts.performance;
+    const prompt =
+      optimizationPrompts[optimizationType] || optimizationPrompts.performance;
 
-        const result = await ClaudeService.anthropic.messages.create({
-            model: "claude-3-sonnet-20240229",
-            max_tokens: 1800,
-            temperature: 0.3,
-            messages: [{ role: "user", content: prompt }],
-        });
+    const result = await anthropic.messages.create({
+      model: "claude-3-5-sonnet-20241022",
+      max_tokens: 1800,
+      temperature: 0.3,
+      messages: [{ role: "user", content: prompt }],
+    });
 
-        res.json({
-            success: true,
-            optimizedCode: result.content[0].text,
-            optimizationType,
-            timestamp: new Date().toISOString(),
-        });
-    } catch (error) {
-        console.error("Code optimization error:", error);
-        res.status(500).json({
-            success: false,
-            error: "Code optimization failed",
-        });
-    }
+    res.json({
+      success: true,
+      optimizedCode: result.content[0].text,
+      optimizationType,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Code optimization error:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message || "Code optimization failed",
+    });
+  }
 });
 
-export default router;
+// Health check for Claude AI
+router.get("/health", (req, res) => {
+  res.json({
+    claude_available: !!anthropic,
+    anthropic_key_set: !!process.env.ANTHROPIC_API_KEY,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+module.exports = router;
