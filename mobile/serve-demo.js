@@ -2,7 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const PORT = 8081;
+const PORT = 5000;
 
 const server = http.createServer((req, res) => {
   let filePath = path.join(__dirname, 'interactive-demo.html');

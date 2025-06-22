@@ -22,7 +22,7 @@ args = "Admin Back-office"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Mobile App"
+args = "Mobile Banking App"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
@@ -46,13 +46,13 @@ args = "cd backoffice && npm run dev"
 waitForPort = 3000
 
 [[workflows.workflow]]
-name = "Mobile App"
+name = "Mobile Banking App"
 author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd mobile && node serve-demo.js"
-waitForPort = 8081
+waitForPort = 5000
 
 [[workflows.workflow]]
 name = "Banking API Server"
@@ -70,6 +70,10 @@ deploymentTarget = "cloudrun"
 [[ports]]
 localPort = 3000
 externalPort = 3000
+
+[[ports]]
+localPort = 5000
+externalPort = 6000
 
 [[ports]]
 localPort = 8000

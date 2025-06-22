@@ -61,8 +61,30 @@ const NotificationService = require('./services/NotificationService');
 const app = express();
 const PORT = process.env.PORT || 8000; // Changed from 8007 to 8000
 
-// Health check endpoint - must be first, before any middleware
+// Serve mobile banking interface on root
 app.get('/', (req, res) => {
+  const fs = require('fs');
+  const path = require('path');
+  const mobileAppPath = path.join(__dirname, '../mobile/interactive-demo.html');
+  
+  fs.readFile(mobileAppPath, 'utf8', (err, content) => {
+    if (err) {
+      res.json({
+        service: 'Centrika Neobank API',
+        status: 'running',
+        version: '1.0.0',
+        timestamp: new Date().toISOString(),
+        message: 'Mobile app not found, showing API status'
+      });
+    } else {
+      res.setHeader('Content-Type', 'text/html');
+      res.send(content);
+    }
+  });
+});
+
+// API health check endpoint
+app.get('/api', (req, res) => {
   res.json({
     service: 'Centrika Neobank API',
     status: 'running',
