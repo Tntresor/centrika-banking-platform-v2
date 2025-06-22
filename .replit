@@ -60,7 +60,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd server && node production-server.js"
+args = "cd server && node optimized-server.js"
 waitForPort = 8000
 
 [deployment]
