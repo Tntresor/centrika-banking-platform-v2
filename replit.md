@@ -119,7 +119,10 @@ A comprehensive mobile neobank application for Rwanda featuring:
   - Banking API Server workflow updated to use port 8000 mapping
   - All deployment requirements satisfied: dependency installation + server startup
   - User registration and authentication working with live Supabase data
-  - Platform ready for Cloud Run, Heroku, Railway, or Render deployment
+  - Platform ready for Cloud Run, Heroku, Railway, Render, or Vercel deployment
+  - Fixed Vercel deployment: Removed conflicting functions/builds properties in vercel.json
+  - Created serverless API structure in /api directory for Vercel compatibility
+  - Added comprehensive deployment documentation for multiple cloud platforms
 
 ## User Preferences
 - Focus on authentic data integration

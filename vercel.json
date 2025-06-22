@@ -2,23 +2,17 @@
   "version": 2,
   "builds": [
     {
-      "src": "deploy-server.js",
+      "src": "api/index.js",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "/deploy-server.js"
+      "dest": "/api/index.js"
     }
   ],
   "env": {
     "NODE_ENV": "production"
-  },
-  "functions": {
-    "deploy-server.js": {
-      "maxDuration": 30
-    }
-  },
-  "installCommand": "npm install --legacy-peer-deps --omit=optional"
+  }
 }
