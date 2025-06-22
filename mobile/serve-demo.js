@@ -21,12 +21,23 @@ const server = http.createServer((req, res) => {
     return;
   }
   
-  if (req.url === '/') {
+  if (req.url === '/' || req.url === '/demo') {
     res.writeHead(200, { 'Content-Type': 'text/html' });
     fs.readFile(filePath, (err, content) => {
       if (err) {
         res.writeHead(500);
         res.end('Error loading demo');
+        return;
+      }
+      res.end(content);
+    });
+  } else if (req.url === '/portal') {
+    const portalPath = path.join(__dirname, 'web-demo.html');
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    fs.readFile(portalPath, (err, content) => {
+      if (err) {
+        res.writeHead(500);
+        res.end('Error loading portal');
         return;
       }
       res.end(content);
