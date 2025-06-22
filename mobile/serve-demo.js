@@ -5,7 +5,18 @@ const path = require('path');
 const PORT = 8081;
 
 const server = http.createServer((req, res) => {
-  let filePath = path.join(__dirname, 'web-demo.html');
+  let filePath = path.join(__dirname, 'interactive-demo.html');
+  
+  // Enable CORS for API calls
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
   
   if (req.url === '/') {
     res.writeHead(200, { 'Content-Type': 'text/html' });
@@ -20,10 +31,11 @@ const server = http.createServer((req, res) => {
   } else if (req.url === '/status') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
-      service: 'Centrika Mobile App Demo',
+      service: 'Centrika Mobile Banking Demo',
       status: 'running',
       port: PORT,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      features: ['User Registration', 'Login', 'P2P Transfers', 'Live Supabase Data']
     }));
   } else {
     res.writeHead(404);

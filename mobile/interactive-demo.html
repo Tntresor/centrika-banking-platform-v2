@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Centrika Mobile Banking</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1A73E8 0%, #4285F4 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .phone-container {
+            width: 375px;
+            height: 667px;
+            background: #000;
+            border-radius: 25px;
+            padding: 8px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+        }
+        
+        .screen {
+            width: 100%;
+            height: 100%;
+            background: #fff;
+            border-radius: 18px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .status-bar {
+            height: 44px;
+            background: #1A73E8;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+            color: white;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .app-content {
+            height: calc(100% - 44px);
+            overflow-y: auto;
+        }
+        
+        .screen-container {
+            display: none;
+            height: 100%;
+        }
+        
+        .screen-container.active {
+            display: block;
+        }
+        
+        /* Login Screen */
+        .login-screen {
+            padding: 40px 30px;
+            text-align: center;
+            background: linear-gradient(135deg, #1A73E8 0%, #4285F4 100%);
+            color: white;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        
+        .logo {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .tagline {
+            font-size: 16px;
+            opacity: 0.9;
+            margin-bottom: 40px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            backdrop-filter: blur(10px);
+        }
+        
+        .form-group input::placeholder {
+            color: rgba(255,255,255,0.7);
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary {
+            background: white;
+            color: #1A73E8;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(255,255,255,0.3);
+        }
+        
+        .btn-secondary {
+            background: transparent;
+            color: white;
+            border: 2px solid rgba(255,255,255,0.3);
+            margin-top: 15px;
+        }
+        
+        /* Dashboard Screen */
+        .dashboard-screen {
+            background: #f8f9fa;
+            height: 100%;
+        }
+        
+        .dashboard-header {
+            background: #1A73E8;
+            color: white;
+            padding: 20px 25px;
+        }
+        
+        .user-greeting {
+            font-size: 18px;
+            margin-bottom: 5px;
+        }
+        
+        .balance-card {
+            background: rgba(255,255,255,0.2);
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .balance-label {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+        
+        .balance-amount {
+            font-size: 32px;
+            font-weight: bold;
+        }
+        
+        .currency {
+            font-size: 16px;
+            opacity: 0.9;
+            margin-left: 5px;
+        }
+        
+        .quick-actions {
+            padding: 25px;
+        }
+        
+        .actions-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        
+        .action-card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+        
+        .action-card:hover {
+            transform: translateY(-3px);
+        }
+        
+        .action-icon {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        
+        .action-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .recent-transactions {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 25px;
+        }
+        
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        .transaction-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .transaction-item:last-child {
+            border-bottom: none;
+        }
+        
+        .transaction-details {
+            flex: 1;
+        }
+        
+        .transaction-title {
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 2px;
+        }
+        
+        .transaction-date {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .transaction-amount {
+            font-weight: 600;
+            color: #1A73E8;
+        }
+        
+        /* Navigation */
+        .bottom-nav {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            border-top: 1px solid #eee;
+            display: flex;
+            height: 70px;
+        }
+        
+        .nav-item {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: #666;
+            font-size: 12px;
+        }
+        
+        .nav-item.active {
+            color: #1A73E8;
+        }
+        
+        .nav-icon {
+            font-size: 20px;
+            margin-bottom: 4px;
+        }
+        
+        /* Transfer Screen */
+        .transfer-screen {
+            background: #f8f9fa;
+            height: 100%;
+            padding: 20px;
+        }
+        
+        .screen-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        
+        .back-btn {
+            background: none;
+            border: none;
+            font-size: 20px;
+            color: #1A73E8;
+            cursor: pointer;
+            margin-right: 15px;
+        }
+        
+        .screen-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .transfer-form {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+        }
+        
+        .form-group input[type="text"],
+        .form-group input[type="number"] {
+            background: #f8f9fa;
+            color: #333;
+            border: 1px solid #e9ecef;
+        }
+        
+        .status-message {
+            padding: 15px;
+            border-radius: 12px;
+            margin: 15px 0;
+            text-align: center;
+            font-weight: 500;
+        }
+        
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="phone-container">
+        <div class="screen">
+            <div class="status-bar">
+                <span>9:41</span>
+                <span>Centrika</span>
+                <span>🔋 100%</span>
+            </div>
+            
+            <div class="app-content">
+                <!-- Login Screen -->
+                <div class="screen-container active" id="loginScreen">
+                    <div class="login-screen">
+                        <div class="logo">Centrika</div>
+                        <div class="tagline">Your Digital Bank for Rwanda</div>
+                        
+                        <div class="form-group">
+                            <label>Phone Number</label>
+                            <input type="text" id="loginPhone" placeholder="+250 xxx xxx xxx">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Password</label>
+                            <input type="password" id="loginPassword" placeholder="Enter your password">
+                        </div>
+                        
+                        <button class="btn btn-primary" onclick="login()">Sign In</button>
+                        <button class="btn btn-secondary" onclick="showRegister()">Create Account</button>
+                        
+                        <div id="loginMessage" class="status-message" style="display: none;"></div>
+                    </div>
+                </div>
+                
+                <!-- Register Screen -->
+                <div class="screen-container" id="registerScreen">
+                    <div class="login-screen">
+                        <div class="screen-header">
+                            <button class="back-btn" onclick="showLogin()" style="color: white; background: none; border: none; font-size: 20px;">‹</button>
+                            <div class="logo">Create Account</div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>First Name</label>
+                            <input type="text" id="firstName" placeholder="Jean">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Last Name</label>
+                            <input type="text" id="lastName" placeholder="Uwimana">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Phone Number</label>
+                            <input type="text" id="regPhone" placeholder="+250 xxx xxx xxx">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Password</label>
+                            <input type="password" id="regPassword" placeholder="Create password">
+                        </div>
+                        
+                        <button class="btn btn-primary" onclick="register()">Create Account</button>
+                        
+                        <div id="registerMessage" class="status-message" style="display: none;"></div>
+                    </div>
+                </div>
+                
+                <!-- Dashboard Screen -->
+                <div class="screen-container" id="dashboardScreen">
+                    <div class="dashboard-screen">
+                        <div class="dashboard-header">
+                            <div class="user-greeting">Good morning, <span id="userName">User</span></div>
+                            <div class="balance-card">
+                                <div class="balance-label">Available Balance</div>
+                                <div class="balance-amount">
+                                    <span id="userBalance">0</span>
+                                    <span class="currency">RWF</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="quick-actions">
+                            <div class="actions-grid">
+                                <div class="action-card" onclick="showTransfer()">
+                                    <div class="action-icon">📱</div>
+                                    <div class="action-title">Send Money</div>
+                                </div>
+                                <div class="action-card" onclick="showDeposit()">
+                                    <div class="action-icon">💰</div>
+                                    <div class="action-title">Add Money</div>
+                                </div>
+                                <div class="action-card" onclick="showQR()">
+                                    <div class="action-icon">📷</div>
+                                    <div class="action-title">Scan QR</div>
+                                </div>
+                                <div class="action-card" onclick="showCards()">
+                                    <div class="action-icon">💳</div>
+                                    <div class="action-title">My Cards</div>
+                                </div>
+                            </div>
+                            
+                            <div class="recent-transactions">
+                                <div class="section-title">Recent Transactions</div>
+                                <div id="transactionsList">
+                                    <div class="transaction-item">
+                                        <div class="transaction-details">
+                                            <div class="transaction-title">Welcome Bonus</div>
+                                            <div class="transaction-date">Today</div>
+                                        </div>
+                                        <div class="transaction-amount">+1,000 RWF</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bottom-nav">
+                        <div class="nav-item active" onclick="showDashboard()">
+                            <div class="nav-icon">🏠</div>
+                            <div>Home</div>
+                        </div>
+                        <div class="nav-item" onclick="showTransfer()">
+                            <div class="nav-icon">📱</div>
+                            <div>Transfer</div>
+                        </div>
+                        <div class="nav-item" onclick="showQR()">
+                            <div class="nav-icon">📷</div>
+                            <div>Scan</div>
+                        </div>
+                        <div class="nav-item" onclick="showProfile()">
+                            <div class="nav-icon">👤</div>
+                            <div>Profile</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Transfer Screen -->
+                <div class="screen-container" id="transferScreen">
+                    <div class="transfer-screen">
+                        <div class="screen-header">
+                            <button class="back-btn" onclick="showDashboard()">‹</button>
+                            <div class="screen-title">Send Money</div>
+                        </div>
+                        
+                        <div class="transfer-form">
+                            <div class="form-group">
+                                <label>Recipient Phone</label>
+                                <input type="text" id="recipientPhone" placeholder="+250 xxx xxx xxx">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Amount (RWF)</label>
+                                <input type="number" id="transferAmount" placeholder="1000">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Description (optional)</label>
+                                <input type="text" id="transferDescription" placeholder="Payment for...">
+                            </div>
+                            
+                            <button class="btn btn-primary" onclick="sendTransfer()">Send Money</button>
+                            
+                            <div id="transferMessage" class="status-message" style="display: none;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null;
+        const API_BASE = 'http://localhost:8000/api';
+        
+        // Navigation functions
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen-container').forEach(screen => {
+                screen.classList.remove('active');
+            });
+            document.getElementById(screenId).classList.add('active');
+        }
+        
+        function showLogin() {
+            showScreen('loginScreen');
+        }
+        
+        function showRegister() {
+            showScreen('registerScreen');
+        }
+        
+        function showDashboard() {
+            showScreen('dashboardScreen');
+            loadUserData();
+        }
+        
+        function showTransfer() {
+            showScreen('transferScreen');
+        }
+        
+        function showDeposit() {
+            showMessage('transferMessage', 'MoMo deposit feature coming soon!', 'info');
+        }
+        
+        function showQR() {
+            showMessage('transferMessage', 'QR scanner feature coming soon!', 'info');
+        }
+        
+        function showCards() {
+            showMessage('transferMessage', 'Virtual cards feature coming soon!', 'info');
+        }
+        
+        function showProfile() {
+            alert('Profile screen - Coming soon!');
+        }
+        
+        // Utility functions
+        function showMessage(elementId, message, type) {
+            const messageEl = document.getElementById(elementId);
+            messageEl.textContent = message;
+            messageEl.className = `status-message status-${type}`;
+            messageEl.style.display = 'block';
+            setTimeout(() => {
+                messageEl.style.display = 'none';
+            }, 3000);
+        }
+        
+        // API functions
+        async function register() {
+            const firstName = document.getElementById('firstName').value;
+            const lastName = document.getElementById('lastName').value;
+            const phone = document.getElementById('regPhone').value;
+            const password = document.getElementById('regPassword').value;
+            
+            if (!firstName || !lastName || !phone || !password) {
+                showMessage('registerMessage', 'Please fill all fields', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ firstName, lastName, phone, password })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showMessage('registerMessage', 'Account created successfully!', 'success');
+                    setTimeout(() => {
+                        document.getElementById('loginPhone').value = phone;
+                        showLogin();
+                    }, 1500);
+                } else {
+                    showMessage('registerMessage', data.message || 'Registration failed', 'error');
+                }
+            } catch (error) {
+                showMessage('registerMessage', 'Network error. Please try again.', 'error');
+            }
+        }
+        
+        async function login() {
+            const phone = document.getElementById('loginPhone').value;
+            const password = document.getElementById('loginPassword').value;
+            
+            if (!phone || !password) {
+                showMessage('loginMessage', 'Please enter phone and password', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone, password })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentUser = data.data.user;
+                    localStorage.setItem('authToken', data.data.token);
+                    showDashboard();
+                } else {
+                    showMessage('loginMessage', data.message || 'Login failed', 'error');
+                }
+            } catch (error) {
+                showMessage('loginMessage', 'Network error. Please try again.', 'error');
+            }
+        }
+        
+        async function loadUserData() {
+            if (!currentUser) return;
+            
+            document.getElementById('userName').textContent = currentUser.firstName;
+            
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch(`${API_BASE}/transactions/wallet`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.data.wallet) {
+                    document.getElementById('userBalance').textContent = 
+                        parseFloat(data.data.wallet.balance).toLocaleString();
+                    
+                    // Load recent transactions
+                    loadTransactions();
+                }
+            } catch (error) {
+                console.error('Error loading user data:', error);
+            }
+        }
+        
+        async function loadTransactions() {
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch(`${API_BASE}/transactions`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.data.length > 0) {
+                    const transactionsList = document.getElementById('transactionsList');
+                    transactionsList.innerHTML = '';
+                    
+                    data.data.slice(0, 5).forEach(tx => {
+                        const item = document.createElement('div');
+                        item.className = 'transaction-item';
+                        item.innerHTML = `
+                            <div class="transaction-details">
+                                <div class="transaction-title">${tx.description || 'Transfer'}</div>
+                                <div class="transaction-date">${new Date(tx.created_at).toLocaleDateString()}</div>
+                            </div>
+                            <div class="transaction-amount">${parseFloat(tx.amount).toLocaleString()} RWF</div>
+                        `;
+                        transactionsList.appendChild(item);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading transactions:', error);
+            }
+        }
+        
+        async function sendTransfer() {
+            const recipientPhone = document.getElementById('recipientPhone').value;
+            const amount = document.getElementById('transferAmount').value;
+            const description = document.getElementById('transferDescription').value;
+            
+            if (!recipientPhone || !amount) {
+                showMessage('transferMessage', 'Please enter recipient and amount', 'error');
+                return;
+            }
+            
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch(`${API_BASE}/transactions/p2p`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ recipientPhone, amount: parseFloat(amount), description })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showMessage('transferMessage', 'Transfer successful!', 'success');
+                    document.getElementById('recipientPhone').value = '';
+                    document.getElementById('transferAmount').value = '';
+                    document.getElementById('transferDescription').value = '';
+                    
+                    setTimeout(() => {
+                        showDashboard();
+                    }, 2000);
+                } else {
+                    showMessage('transferMessage', data.message || 'Transfer failed', 'error');
+                }
+            } catch (error) {
+                showMessage('transferMessage', 'Network error. Please try again.', 'error');
+            }
+        }
+        
+        // Check if user is already logged in
+        window.onload = function() {
+            const token = localStorage.getItem('authToken');
+            if (token) {
+                // Optionally verify token with backend
+                showDashboard();
+            }
+        };
+    </script>
+</body>
+</html>
