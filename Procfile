@@ -1,1 +1,1 @@
-web: cd server && npm install --production && npm start
+web: node server/simple-server.js
