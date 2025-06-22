@@ -2,11 +2,13 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { storage } = require('../storage-supabase');
+const { validatePassword, getJWTSecret, getPasswordRequirements } = require('../utils/security');
+const { userService } = require('../services/user-service');
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'centrika_dev_secret_key_2024';
+const JWT_SECRET = getJWTSecret();
 
-// User registration endpoint
+// User registration endpoint with enhanced security
 router.post('/register', async (req, res) => {
   try {
     const { firstName, lastName, phone, password } = req.body;
@@ -15,6 +17,16 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'All fields are required'
+      });
+    }
+
+    // Validate password strength
+    const passwordValidation = getPasswordRequirements(password);
+    if (!passwordValidation.isValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 10 characters long and contain uppercase, lowercase, number, and special character',
+        requirements: passwordValidation.requirements
       });
     }
 
@@ -27,39 +39,35 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Create new user
-    const userData = {
+    // Create user using secure service
+    const clientInfo = {
+      ip: req.ip || req.connection.remoteAddress,
+      userAgent: req.get('User-Agent')
+    };
+
+    const result = await userService.createUser({
       firstName,
       lastName,
       phone,
+      password,
       email: `${phone}@centrika.rw`,
-      passwordHash: await bcrypt.hash(password, 10),
-      kycStatus: 'pending',
-      isActive: true,
       preferredLanguage: 'en'
-    };
-
-    const newUser = await storage.createUser(userData);
-
-    // Create wallet for user
-    const walletData = {
-      userId: newUser.id,
-      balance: '1000.00',
-      currency: 'RWF',
-      isActive: true,
-      kycLevel: 1
-    };
-    await storage.createWallet(walletData);
+    }, clientInfo);
 
     res.json({
       success: true,
       message: 'Account created successfully',
-      data: { userId: newUser.id }
+      data: { userId: result.user.id }
     });
 
   } catch (error) {
     console.error('Registration error:', error);
-    if (error.code === '23505') {
+    if (error.message.includes('Password does not meet security requirements')) {
+      res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    } else if (error.code === '23505') {
       res.status(400).json({
         success: false,
         message: 'Phone number already registered'
@@ -139,7 +147,7 @@ router.post('/signup', async (req, res) => {
   }
 });
 
-// User login endpoint
+// User login endpoint with enhanced security
 router.post('/login', async (req, res) => {
   try {
     const { phone, password } = req.body;
@@ -151,8 +159,14 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Find user by phone number
-    const user = await storage.getUserByPhone(phone);
+    // Authenticate user using secure service
+    const clientInfo = {
+      ip: req.ip || req.connection.remoteAddress,
+      userAgent: req.get('User-Agent')
+    };
+
+    const user = await userService.authenticateUser(phone, password, clientInfo);
+    
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -160,23 +174,19 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Verify password
-    const isValidPassword = await bcrypt.compare(password, user.password_hash);
-    if (!isValidPassword) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid credentials'
-      });
-    }
-
-    // Generate JWT token
+    // Generate JWT token with enhanced security
     const token = jwt.sign(
       { 
         userId: user.id,
-        phone: user.phone
+        phone: user.phone,
+        kycStatus: user.kycStatus
       },
       JWT_SECRET,
-      { expiresIn: '24h' }
+      { 
+        expiresIn: process.env.NODE_ENV === 'production' ? '2h' : '24h',
+        issuer: 'centrika-neobank',
+        audience: 'centrika-users'
+      }
     );
 
     res.json({
@@ -185,9 +195,10 @@ router.post('/login', async (req, res) => {
         token,
         user: {
           id: user.id,
-          firstName: user.first_name,
-          lastName: user.last_name,
-          phone: user.phone
+          firstName: user.firstName,
+          lastName: user.lastName,
+          phone: user.phone,
+          kycStatus: user.kycStatus
         }
       }
     });

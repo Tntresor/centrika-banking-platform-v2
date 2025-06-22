@@ -3,6 +3,7 @@ const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const path = require("path");
+const crypto = require("crypto");
 require("dotenv").config();
 
 // Add at the very top after requires
@@ -129,8 +130,22 @@ app.get("/health", (req, res) => {
   });
 });
 
-// Security middleware
-app.use(helmet());
+// Enhanced Security Middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:"],
+    },
+  },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  }
+}));
 app.use(
   cors({
     origin: true, // Allow all origins for development
@@ -140,23 +155,36 @@ app.use(
   }),
 );
 
-// Rate limiting
+// Enhanced Rate Limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
-  message: "Too many requests from this IP, please try again later.",
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Too many requests from this IP, please try again later.'
+  }
 });
 app.use("/api/", limiter);
 
-// Body parsing middleware
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+// Body parsing middleware with security limits
+app.use(express.json({ limit: "10kb" }));
+app.use(express.urlencoded({ extended: true, limit: "10kb" }));
 
-// Request logging middleware
+// Import services and middleware
+const { auditMiddleware } = require('./services/audit-service');
+const { complianceMiddleware } = require('./middleware/compliance');
+
+// Request logging and audit middleware
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
   next();
 });
+
+// Add audit and compliance middleware
+app.use(auditMiddleware);
+app.use(complianceMiddleware);
 
 // API routes with error handling
 if (authRoutes) app.use("/api/auth", authRoutes);

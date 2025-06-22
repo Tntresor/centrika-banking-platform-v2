@@ -8,10 +8,13 @@ class DatabaseStorage {
   constructor() {
     this.pool = new Pool({
       connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false },
-      max: 10,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 5000,
+      ssl: {
+        rejectUnauthorized: process.env.NODE_ENV === 'production' ? true : false
+      },
+      max: 20, // Maximum number of clients
+      idleTimeoutMillis: 10000, // Close idle clients after 10 seconds
+      connectionTimeoutMillis: 5000, // Return an error after 5 seconds if connection not established
+      maxUses: 7500 // Close and replace a connection after it has been used 7500 times
     });
     this.connected = false;
   }
@@ -32,13 +35,29 @@ class DatabaseStorage {
 
   async executeQuery(query, params = []) {
     try {
-      
+      await this.connect();
       const result = await this.pool.query(query, params);
       return result;
     } catch (error) {
       console.error('Query failed:', error.message);
       this.connected = false;
       throw error;
+    }
+  }
+
+  // Transaction management for secure banking operations
+  async executeTransaction(callback) {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await callback(client);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
   }
 
