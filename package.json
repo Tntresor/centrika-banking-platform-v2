@@ -8,6 +8,7 @@
     "build": "echo 'Build complete'"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.54.0",
     "@babel/core": "^7.27.4",
     "@neondatabase/serverless": "^1.0.1",
     "@react-navigation/native": "^6.1.18",

@@ -253,3 +253,14 @@ class DatabaseStorage {
 
 const storage = new DatabaseStorage();
 module.exports = { storage };
+
+// Add this to your database connection code
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  // Don't exit - let the app handle it gracefully
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  // Don't exit - let the app handle it gracefully
+});

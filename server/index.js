@@ -4,13 +4,24 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
+// Add at the very top after requires
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  console.log('Attempting to continue...');
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection:', reason);
+  console.log('Attempting to continue...');
+});
+
 // Test database connection on startup
 async function testDatabaseConnection() {
   try {
     if (!process.env.DATABASE_URL) {
       throw new Error('DATABASE_URL environment variable is not set');
     }
-    
+
     const { storage } = require('./storage-supabase');
     await storage.connect();
     console.log('✅ Database connection test passed');
@@ -44,13 +55,11 @@ try {
   process.exit(1);
 }
 
-
-
 // Services
 const NotificationService = require('./services/NotificationService');
 
 const app = express();
-const PORT = process.env.PORT || 8007;
+const PORT = process.env.PORT || 8000; // Changed from 8007 to 8000
 
 // Health check endpoint - must be first, before any middleware
 app.get('/', (req, res) => {
@@ -96,8 +105,6 @@ app.use((req, res, next) => {
   next();
 });
 
-
-
 // API routes with error handling
 if (authRoutes) app.use('/api/auth', authRoutes);
 if (kycRoutes) app.use('/api/kyc', kycRoutes);
@@ -112,7 +119,7 @@ if (adminLiveRoutes) {
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Error:', err);
-  
+
   // Validation errors
   if (err.name === 'ValidationError') {
     return res.status(400).json({
@@ -121,7 +128,7 @@ app.use((err, req, res, next) => {
       errors: err.errors,
     });
   }
-  
+
   // JWT errors
   if (err.name === 'JsonWebTokenError') {
     return res.status(401).json({
@@ -129,7 +136,7 @@ app.use((err, req, res, next) => {
       message: 'Invalid token',
     });
   }
-  
+
   // Default error
   res.status(err.status || 500).json({
     success: false,
@@ -146,24 +153,48 @@ app.use('*', (req, res) => {
   });
 });
 
-// Initialize services
+// Initialize services - SINGLE INITIALIZATION FUNCTION
 async function initializeServices() {
   try {
-    await NotificationService.initialize();
-    console.log('Services initialized successfully');
+    console.log('🚀 Centrika Neobank - Starting Server');
+
+    // Test database connection
+    const dbConnected = await testDatabaseConnection();
+    if (!dbConnected) {
+      console.log('⚠️  Continuing without database connection');
+    }
+
+    // Initialize notification service
+    try {
+      await NotificationService.initialize();
+      console.log('✅ NotificationService initialized');
+    } catch (error) {
+      console.log('⚠️  NotificationService failed to initialize:', error.message);
+    }
+
+    // Start server only once
+    const server = app.listen(PORT, '0.0.0.0', () => {
+      console.log(`✅ Server listening on http://0.0.0.0:${PORT}`);
+      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`Health check: http://0.0.0.0:${PORT}/health`);
+      console.log(`Database: ${dbConnected ? 'Connected' : 'Disconnected'}`);
+    });
+
+    // Handle server errors
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.log(`❌ Port ${PORT} is already in use`);
+        process.exit(1);
+      } else {
+        console.error('❌ Server error:', err);
+      }
+    });
+
   } catch (error) {
-    console.error('Failed to initialize services:', error);
+    console.error('❌ Failed to initialize services:', error);
+    process.exit(1);
   }
 }
-
-// Start server with proper binding for deployment
-app.listen(PORT, '0.0.0.0', async () => {
-  console.log(`Listening on http://0.0.0.0:${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`Health check: http://0.0.0.0:${PORT}/health`);
-  
-  await initializeServices();
-});
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
@@ -175,41 +206,6 @@ process.on('SIGINT', () => {
   console.log('SIGINT received, shutting down gracefully');
   process.exit(0);
 });
-
-// Initialize services with database connection test
-async function initializeServices() {
-  try {
-    console.log('🚀 Centrika Neobank - Starting Server');
-    
-    // Test database connection
-    const dbConnected = await testDatabaseConnection();
-    if (!dbConnected) {
-      console.log('⚠️  Continuing without database connection');
-    }
-    
-    // Start server only once
-    const server = app.listen(PORT, '0.0.0.0', () => {
-      console.log(`✅ Server listening on http://0.0.0.0:${PORT}`);
-      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`Health check: http://0.0.0.0:${PORT}/health`);
-      console.log(`Database: ${dbConnected ? 'Connected' : 'Disconnected'}`);
-    });
-    
-    // Handle server errors
-    server.on('error', (err) => {
-      if (err.code === 'EADDRINUSE') {
-        console.log(`Port ${PORT} is already in use`);
-        process.exit(1);
-      } else {
-        console.error('Server error:', err);
-      }
-    });
-    
-  } catch (error) {
-    console.error('❌ Failed to initialize services:', error);
-    process.exit(1);
-  }
-}
 
 // Only start server if this file is run directly
 if (require.main === module) {
