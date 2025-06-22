@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "name": "centrika-banking-api",
   "builds": [
     {
       "src": "deploy-server.js",
@@ -18,7 +17,8 @@
   },
   "functions": {
     "deploy-server.js": {
-      "maxDuration": 60
+      "maxDuration": 30
     }
-  }
+  },
+  "installCommand": "npm install --legacy-peer-deps --omit=optional"
 }
