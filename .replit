@@ -61,7 +61,7 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd server && node production-server.js"
-waitForPort = 5000
+waitForPort = 8000
 
 [deployment]
 run = ["sh", "-c", "cd server && npm install && cd ../mobile && npm install && cd ../backoffice && npm install"]

@@ -215,6 +215,13 @@ A comprehensive mobile neobank application for Rwanda featuring:
   - Variables d'environnement forcées à HOST=0.0.0.0 et PORT=8000
   - Procfile et configuration de déploiement optimisés
   - Serveur stable sans processus enfant complexe
+- 2025-06-22: PORT CONFIGURATION ISSUE RESOLVED:
+  - Created test-server.js to verify basic Express functionality
+  - Identified port mismatch: production-server.js using port 5000 vs expected 8000
+  - Fixed production server default port from 5000 to 8000
+  - Banking API Server now operational on correct port with full database connectivity
+  - User registration and authentication endpoints verified working
+  - All banking services restored to full functionality
 
 ## User Preferences
 - Focus on authentic data integration
