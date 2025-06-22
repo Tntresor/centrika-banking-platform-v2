@@ -1,0 +1,377 @@
+File to modify: server/storage-supabase.js
+Steps:
+
+Open server/storage-supabase.js
+Add the cache-aware query method:
+javascript/**
+ * Execute query with caching
+ * @param {string} query - SQL query
+ * @param {Array} params - Query parameters
+ * @param {string} cacheKey - Cache key
+ * @param {number} cacheTtl - Cache TTL in seconds
+ * @returns {Promise<Object>} - Query result
+ */
+async executeQueryWithCache(query, params, cacheKey, cacheTtl) {
+  // Check if caching is enabled
+  if (!this.cacheService || !cacheKey) {
+    return await this.executeQuery(query, params);
+  }
+  
+  // Try to get from cache first
+  const cachedResult = this.cacheService.get(cacheKey);
+  if (cachedResult) {
+    return cachedResult;
+  }
+  
+  // Execute query
+  const result = await this.executeQuery(query, params);
+  
+  // Cache the result
+  this.cacheService.set(cacheKey, result, cacheTtl);
+  
+  return result;
+}
+
+/**
+ * Set cache service
+ * @param {Object} cacheService - Cache service instance
+ */
+setCacheService(cacheService) {
+  this.cacheService = cacheService;
+}
+
+Save the file
+
+File to modify: server/index.js
+Steps:
+
+Open server/index.js
+Add the cache service import:
+javascriptconst CacheService = require('./services/cache-service');
+
+Initialize the cache service (after other service initializations):
+javascript// Initialize cache service with 5-minute default TTL
+const cacheService = new CacheService(300);
+
+// Inject cache service into storage
+storage.setCacheService(cacheService);
+
+Create a cache status endpoint:
+javascript// Add cache status endpoint for monitoring
+app.get('/api/system/cache-status', authenticate, (req, res) => {
+  res.json({
+    success: true,
+    data: cacheService.getStats()
+  });
+});
+
+Save the file
+
+3. Add Performance Monitoring
+File to create: server/services/monitoring-service.js
+Steps:
+
+Install the required package:
+bashnpm install prom-client --save
+
+Create a new file at server/services/monitoring-service.js
+Add the following code:
+javascriptconst prometheusClient = require('prom-client');
+
+/**
+ * Service for performance monitoring and metrics
+ */
+class MonitoringService {
+  constructor() {
+    // Create a Registry to register the metrics
+    this.register = new prometheusClient.Registry();
+    
+    // Add default metrics
+    prometheusClient.collectDefaultMetrics({ register: this.register });
+    
+    // Create custom metrics
+    this.httpRequestDurationMicroseconds = new prometheusClient.Histogram({
+      name: 'http_request_duration_ms',
+      help: 'Duration of HTTP requests in ms',
+      labelNames: ['method', 'route', 'status_code'],
+      buckets: [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000],
+      registers: [this.register]
+    });
+    
+    this.dbQueryDurationMicroseconds = new prometheusClient.Histogram({
+      name: 'db_query_duration_ms',
+      help: 'Duration of database queries in ms',
+      labelNames: ['query_name'],
+      buckets: [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000],
+      registers: [this.register]
+    });
+    
+    this.activeUsers = new prometheusClient.Gauge({
+      name: 'active_users',
+      help: 'Number of active users',
+      registers: [this.register]
+    });
+    
+    this.failedLogins = new prometheusClient.Counter({
+      name: 'failed_logins_total',
+      help: 'Total number of failed login attempts',
+      registers: [this.register]
+    });
+    
+    this.successfulLogins = new prometheusClient.Counter({
+      name: 'successful_logins_total',
+      help: 'Total number of successful login attempts',
+      registers: [this.register]
+    });
+    
+    this.transactionCount = new prometheusClient.Counter({
+      name: 'transactions_total',
+      help: 'Total number of transactions',
+      labelNames: ['type', 'status'],
+      registers: [this.register]
+    });
+    
+    this.transactionValue = new prometheusClient.Counter({
+      name: 'transaction_value_total',
+      help: 'Total value of transactions',
+      labelNames: ['type'],
+      registers: [this.register]
+    });
+  }
+  
+  /**
+   * Start timer for HTTP request
+   * @returns {Function} - End timer function
+   */
+  startHttpTimer() {
+    return this.httpRequestDurationMicroseconds.startTimer();
+  }
+  
+  /**
+   * Start timer for database query
+   * @returns {Function} - End timer function
+   */
+  startDbTimer() {
+    return this.dbQueryDurationMicroseconds.startTimer();
+  }
+  
+  /**
+   * Increment active users count
+   */
+  incrementActiveUsers() {
+    this.activeUsers.inc();
+  }
+  
+  /**
+   * Decrement active users count
+   */
+  decrementActiveUsers() {
+    this.activeUsers.dec();
+  }
+  
+  /**
+   * Record a failed login attempt
+   */
+  recordFailedLogin() {
+    this.failedLogins.inc();
+  }
+  
+  /**
+   * Record a successful login
+   */
+  recordSuccessfulLogin() {
+    this.successfulLogins.inc();
+  }
+  
+  /**
+   * Record a transaction
+   * @param {string} type - Transaction type
+   * @param {string} status - Transaction status
+   * @param {number} value - Transaction value
+   */
+  recordTransaction(type, status, value) {
+    this.transactionCount.inc({ type, status });
+    
+    if (status === 'completed' && value > 0) {
+      this.transactionValue.inc({ type }, value);
+    }
+  }
+  
+  /**
+   * Get metrics in Prometheus format
+   * @returns {Promise<string>} - Metrics in Prometheus format
+   */
+  async getMetrics() {
+    return await this.register.metrics();
+  }
+  
+  /**
+   * Get metrics in JSON format
+   * @returns {Promise<Object>} - Metrics in JSON format
+   */
+  async getMetricsAsJson() {
+    return await this.register.getMetricsAsJSON();
+  }
+}
+
+module.exports = MonitoringService;
+
+Save the file
+
+File to create: server/middleware/performance-monitoring-middleware.js
+Steps:
+
+Create a new file at server/middleware/performance-monitoring-middleware.js
+Add the following code:
+javascript/**
+ * Middleware for monitoring HTTP request performance
+ */
+const performanceMonitoringMiddleware = (monitoringService) => (req, res, next) => {
+  // Start timer
+  const end = monitoringService.startHttpTimer();
+  
+  // Store start time for detailed logging
+  req.startTime = Date.now();
+  
+  // Track response
+  res.on('finish', () => {
+    const route = req.route ? req.route.path : req.path;
+    
+    // End timer with labels
+    end({
+      method: req.method,
+      route: route,
+      status_code: res.statusCode
+    });
+    
+    // Log slow requests (> 1000ms)
+    const duration = Date.now() - req.startTime;
+    if (duration > 1000) {
+      console.warn(`Slow request: ${req.method} ${route} - ${duration}ms`);
+    }
+  });
+  
+  next();
+};
+
+module.exports = performanceMonitoringMiddleware;
+
+Save the file
+
+File to modify: server/storage-supabase.js
+Steps:
+
+Open server/storage-supabase.js
+Add a monitored query execution method:
+javascript/**
+ * Execute query with monitoring
+ * @param {string} query - SQL query
+ * @param {Array} params - Query parameters
+ * @param {string} queryName - Query name for monitoring
+ * @returns {Promise<Object>} - Query result
+ */
+async executeQueryWithMonitoring(query, params, queryName = 'unknown') {
+  // Check if monitoring is enabled
+  if (!this.monitoringService) {
+    return await this.executeQuery(query, params);
+  }
+  
+  // Start timer
+  const end = this.monitoringService.startDbTimer();
+  
+  try {
+    // Execute query
+    const result = await this.executeQuery(query, params);
+    return result;
+  } finally {
+    // End timer with query name
+    end({ query_name: queryName });
+  }
+}
+
+/**
+ * Set monitoring service
+ * @param {Object} monitoringService - Monitoring service instance
+ */
+setMonitoringService(monitoringService) {
+  this.monitoringService = monitoringService;
+}
+
+Save the file
+
+File to modify: server/index.js
+Steps:
+
+Open server/index.js
+Add the monitoring service imports:
+javascriptconst MonitoringService = require('./services/monitoring-service');
+const performanceMonitoringMiddleware = require('./middleware/performance-monitoring-middleware');
+
+Initialize the monitoring service:
+javascript// Initialize monitoring service
+const monitoringService = new MonitoringService();
+
+// Inject monitoring service into storage
+storage.setMonitoringService(monitoringService);
+
+Add the monitoring middleware (after other middleware):
+javascript// Add performance monitoring middleware
+app.use(performanceMonitoringMiddleware(monitoringService));
+
+Add a metrics endpoint:
+javascript// Add metrics endpoint for monitoring systems
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', monitoringService.register.contentType);
+  res.end(await monitoringService.getMetrics());
+});
+
+// Add JSON metrics endpoint
+app.get('/api/system/metrics', authenticate, async (req, res) => {
+  res.json({
+    success: true,
+    data: await monitoringService.getMetricsAsJson()
+  });
+});
+
+Save the file
+
+File to modify: server/services/user-service.js
+Steps:
+
+Open server/services/user-service.js
+Modify the authenticateUser method to include monitoring:
+javascriptasync authenticateUser(email, password, ipAddress) {
+  // Get user from database
+  const result = await this.storage.executeQuery(
+    'SELECT id, email, password FROM users WHERE email = $1',
+    [email]
+  );
+  
+  if (result.rows.length === 0) {
+    // Log failed attempt
+    await this.auditService.log('login_failed', null, { 
+      email, 
+      reason: 'user_not_found',
+      ip: ipAddress 
+    });
+    
+    // Record failed login in monitoring
+    if (this.monitoringService) {
+      this.monitoringService.recordFailedLogin();
+    }
+    
+    throw new Error('Invalid email or password');
+  }
+  
+  const user = result.rows[0];
+  
+  // Verify password
+  const isPasswordValid = await bcrypt.compare(password, user.password);
+  
+  if (!isPasswordValid) {
+    // Log failed attempt
+    await this.auditService.log('login_failed', user.id, { 
+      reason: 'invalid_password',
+      ip: ipAddress 
+    });
+    

@@ -1,0 +1,996 @@
+Implement Automated Testing
+File to create: server/tests/unit/user-service.test.js
+Steps:
+
+Install the required testing packages:
+bashnpm install jest supertest --save-dev
+
+Create a new file at server/tests/unit/user-service.test.js
+Add the following code:
+javascriptconst UserService = require('../../services/user-service');
+
+// Mock dependencies
+const mockStorage = {
+  executeTransaction: jest.fn(),
+  executeQuery: jest.fn()
+};
+
+const mockAuditService = {
+  log: jest.fn()
+};
+
+describe('UserService', () => {
+  let userService;
+  
+  beforeEach(() => {
+    // Clear all mocks before each test
+    jest.clearAllMocks();
+    
+    // Create a new instance for each test
+    userService = new UserService(mockStorage, mockAuditService);
+  });
+  
+  describe('createUser', () => {
+    it('should create a user successfully', async () => {
+      // Mock the transaction function
+      mockStorage.executeTransaction.mockImplementation(async (callback) => {
+        // Mock client for the transaction callback
+        const mockClient = {
+          query: jest.fn()
+        };
+        
+        // First query returns empty array (user doesn't exist)
+        mockClient.query.mockResolvedValueOnce({ rows: [] });
+        
+        // Second query returns the created user
+        mockClient.query.mockResolvedValueOnce({
+          rows: [{
+            id: 'user123',
+            email: 'test@example.com',
+            created_at: new Date().toISOString()
+          }]
+        });
+        
+        // Execute the callback with the mock client
+        return await callback(mockClient);
+      });
+      
+      // Test data
+      const userData = {
+        email: 'test@example.com',
+        password: 'StrongP@ssw0rd123'
+      };
+      
+      // Call the method
+      const result = await userService.createUser(userData, '127.0.0.1');
+      
+      // Assertions
+      expect(mockStorage.executeTransaction).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(expect.objectContaining({
+        id: 'user123',
+        email: 'test@example.com'
+      }));
+      expect(mockAuditService.log).toHaveBeenCalledWith(
+        'user_created',
+        'user123',
+        expect.objectContaining({ email: 'test@example.com' }),
+        expect.anything()
+      );
+    });
+    
+    it('should throw error if email is invalid', async () => {
+      // Test data with invalid email
+      const userData = {
+        email: 'invalid-email',
+        password: 'StrongP@ssw0rd123'
+      };
+      
+      // Call the method and expect it to throw
+      await expect(userService.createUser(userData, '127.0.0.1'))
+        .rejects
+        .toThrow('Valid email is required');
+      
+      // Verify transaction was not attempted
+      expect(mockStorage.executeTransaction).not.toHaveBeenCalled();
+    });
+    
+    it('should throw error if password is weak', async () => {
+      // Test data with weak password
+      const userData = {
+        email: 'test@example.com',
+        password: 'weak'
+      };
+      
+      // Call the method and expect it to throw
+      await expect(userService.createUser(userData, '127.0.0.1'))
+        .rejects
+        .toThrow('Password does not meet security requirements');
+      
+      // Verify transaction was not attempted
+      expect(mockStorage.executeTransaction).not.toHaveBeenCalled();
+    });
+    
+    it('should throw error if user already exists', async () => {
+      // Mock the transaction function
+      mockStorage.executeTransaction.mockImplementation(async (callback) => {
+        // Mock client for the transaction callback
+        const mockClient = {
+          query: jest.fn()
+        };
+        
+        // First query returns existing user
+        mockClient.query.mockResolvedValueOnce({
+          rows: [{ id: 'existing123' }]
+        });
+        
+        // Execute the callback with the mock client
+        return await callback(mockClient);
+      });
+      
+      // Test data
+      const userData = {
+        email: 'existing@example.com',
+        password: 'StrongP@ssw0rd123'
+      };
+      
+      // Call the method and expect it to throw
+      await expect(userService.createUser(userData, '127.0.0.1'))
+        .rejects
+        .toThrow('User with this email already exists');
+    });
+  });
+  
+  // Add more test cases for other methods...
+});
+
+Save the file
+
+File to create: server/tests/integration/auth-routes.test.js
+Steps:
+
+Create a new file at server/tests/integration/auth-routes.test.js
+Add the following code:
+javascriptconst request = require('supertest');
+const express = require('express');
+const jwt = require('jsonwebtoken');
+
+// Create a test app
+const app = express();
+app.use(express.json());
+
+// Mock services
+const mockStorage = {
+  executeTransaction: jest.fn(),
+  executeQuery: jest.fn()
+};
+
+const mockAuditService = {
+  log: jest.fn()
+};
+
+// Setup test JWT secret
+process.env.JWT_SECRET = 'test-secret-key';
+
+// Import and initialize routes
+const authRoutesFactory = require('../../routes/auth-simple');
+const authRoutes = authRoutesFactory(mockStorage, mockAuditService);
+app.use('/api/auth', authRoutes);
+
+describe('Authentication Routes', () => {
+  beforeEach(() => {
+    // Clear all mocks before each test
+    jest.clearAllMocks();
+  });
+  
+  describe('POST /api/auth/register', () => {
+    it('should register a new user successfully', async () => {
+      // Mock successful user creation
+      mockStorage.executeTransaction.mockImplementation(async (callback) => {
+        // Mock client
+        const mockClient = {
+          query: jest.fn()
+        };
+        
+        // First query (check if user exists)
+        mockClient.query.mockResolvedValueOnce({ rows: [] });
+        
+        // Second query (create user)
+        mockClient.query.mockResolvedValueOnce({
+          rows: [{
+            id: 'user123',
+            email: 'test@example.com',
+            created_at: new Date().toISOString()
+          }]
+        });
+        
+        return await callback(mockClient);
+      });
+      
+      // Test request
+      const response = await request(app)
+        .post('/api/auth/register')
+        .send({
+          email: 'test@example.com',
+          password: 'StrongP@ssw0rd123'
+        });
+      
+      // Assertions
+      expect(response.status).toBe(201);
+      expect(response.body).toEqual({
+        success: true,
+        message: 'User registered successfully',
+        data: {
+          id: 'user123',
+          email: 'test@example.com'
+        }
+      });
+    });
+    
+    it('should return 400 for invalid input', async () => {
+      // Test request with invalid data
+      const response = await request(app)
+        .post('/api/auth/register')
+        .send({
+          email: 'invalid-email',
+          password: 'weak'
+        });
+      
+      // Assertions
+      expect(response.status).toBe(400);
+      expect(response.body.success).toBe(false);
+    });
+  });
+  
+  describe('POST /api/auth/login', () => {
+    it('should login successfully with valid credentials', async () => {
+      // Mock successful authentication
+      const mockUser = {
+        id: 'user123',
+        email: 'test@example.com',
+        password: '$2b$12$abcdefghijklmnopqrstuvwxyz' // Hashed password
+      };
+      
+      mockStorage.executeQuery.mockResolvedValueOnce({
+        rows: [mockUser]
+      });
+      
+      // Mock bcrypt.compare
+      const bcrypt = require('bcrypt');
+      jest.spyOn(bcrypt, 'compare').mockResolvedValueOnce(true);
+      
+      // Test request
+      const response = await request(app)
+        .post('/api/auth/login')
+        .send({
+          email: 'test@example.com',
+          password: 'StrongP@ssw0rd123'
+        });
+      
+      // Assertions
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toHaveProperty('token');
+      expect(response.body.data).toHaveProperty('user');
+      expect(response.body.data.user.email).toBe('test@example.com');
+      
+      // Verify the token
+      const token = response.body.data.token;
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      expect(decoded.user.id).toBe('user123');
+    });
+    
+    it('should return 401 for invalid credentials', async () => {
+      // Mock user retrieval
+      mockStorage.executeQuery.mockResolvedValueOnce({
+        rows: [{
+          id: 'user123',
+          email: 'test@example.com',
+          password: '$2b$12$abcdefghijklmnopqrstuvwxyz' // Hashed password
+        }]
+      });
+      
+      // Mock bcrypt.compare (password doesn't match)
+      const bcrypt = require('bcrypt');
+      jest.spyOn(bcrypt, 'compare').mockResolvedValueOnce(false);
+      
+      // Test request
+      const response = await request(app)
+        .post('/api/auth/login')
+        .send({
+          email: 'test@example.com',
+          password: 'WrongPassword'
+        });
+      
+      // Assertions
+      expect(response.status).toBe(401);
+      expect(response.body.success).toBe(false);
+    });
+  });
+});
+
+Save the file
+
+File to create: server/package.json changes
+Steps:
+
+Open server/package.json
+Add/update the scripts section:
+json"scripts": {
+  "start": "node index.js",
+  "dev": "nodemon index.js",
+  "test": "jest",
+  "test:watch": "jest --watch",
+  "test:coverage": "jest --coverage"
+}
+
+Add Jest configuration:
+json"jest": {
+  "testEnvironment": "node",
+  "coveragePathIgnorePatterns": [
+    "/node_modules/"
+  ],
+  "testPathIgnorePatterns": [
+    "/node_modules/"
+  ]
+}
+
+Save the file
+
+2. Create Database Migration System
+File to create: server/migrations/index.js
+Steps:
+
+Create a new file at server/migrations/index.js
+Add the following code:
+javascriptconst fs = require('fs');
+const path = require('path');
+const { Pool } = require('pg');
+
+/**
+ * Database migration system
+ */
+class MigrationSystem {
+  constructor(connectionString) {
+    this.pool = new Pool({
+      connectionString,
+      ssl: {
+        rejectUnauthorized: process.env.NODE_ENV === 'production' ? true : false
+      }
+    });
+    
+    this.migrationsDir = __dirname;
+  }
+  
+  /**
+   * Initialize migrations table
+   */
+  async initMigrationsTable() {
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS migrations (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        applied_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+  }
+  
+  /**
+   * Get applied migrations
+   * @returns {Promise<Array>} - List of applied migrations
+   */
+  async getAppliedMigrations() {
+    const result = await this.pool.query('SELECT name FROM migrations ORDER BY id');
+    return result.rows.map(row => row.name);
+  }
+  
+  /**
+   * Get all migration files
+   * @returns {Promise<Array>} - List of migration files
+   */
+  async getMigrationFiles() {
+    return new Promise((resolve, reject) => {
+      fs.readdir(this.migrationsDir, (err, files) => {
+        if (err) {
+          return reject(err);
+        }
+        
+        // Filter SQL files and sort them
+        const sqlFiles = files
+          .filter(file => file.endsWith('.sql'))
+          .sort();
+        
+        resolve(sqlFiles);
+      });
+    });
+  }
+  
+  /**
+   * Apply migrations
+   * @returns {Promise<Object>} - Migration results
+   */
+  async applyMigrations() {
+    // Initialize migrations table
+    await this.initMigrationsTable();
+    
+    // Get applied migrations
+    const appliedMigrations = await this.getAppliedMigrations();
+    
+    // Get all migration files
+    const migrationFiles = await this.getMigrationFiles();
+    
+    // Filter pending migrations
+    const pendingMigrations = migrationFiles.filter(
+      file => !appliedMigrations.includes(file)
+    );
+    
+    if (pendingMigrations.length === 0) {
+      return {
+        applied: 0,
+        message: 'No pending migrations'
+      };
+    }
+    
+    // Apply pending migrations
+    const client = await this.pool.connect();
+    
+    try {
+      // Start transaction
+      await client.query('BEGIN');
+      
+      // Apply each migration
+      for (const file of pendingMigrations) {
+        console.log(`Applying migration: ${file}`);
+        
+        // Read migration file
+        const filePath = path.join(this.migrationsDir, file);
+        const sql = fs.readFileSync(filePath, 'utf8');
+        
+        // Execute migration
+        await client.query(sql);
+        
+        // Record migration
+        await client.query(
+          'INSERT INTO migrations (name) VALUES ($1)',
+          [file]
+        );
+      }
+      
+      // Commit transaction
+      await client.query('COMMIT');
+      
+      return {
+        applied: pendingMigrations.length,
+        migrations: pendingMigrations
+      };
+    } catch (error) {
+      // Rollback transaction on error
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      // Release client
+      client.release();
+    }
+  }
+  
+  /**
+   * Close database connection
+   */
+  async close() {
+    await this.pool.end();
+  }
+}
+
+// Run migrations if executed directly
+if (require.main === module) {
+  const connectionString = process.env.DATABASE_URL;
+  
+  if (!connectionString) {
+    console.error('DATABASE_URL environment variable is required');
+    process.exit(1);
+  }
+  
+  const migrator = new MigrationSystem(connectionString);
+  
+  migrator.applyMigrations()
+    .then(result => {
+      console.log('Migration result:', result);
+      return migrator.close();
+    })
+    .catch(err => {
+      console.error('Migration failed:', err);
+      process.exit(1);
+    });
+}
+
+module.exports = MigrationSystem;
+
+Save the file
+
+File to create: server/seeds/seed.js
+Steps:
+
+Create a new file at server/seeds/seed.js
+Add the following code:
+javascriptconst bcrypt = require('bcrypt');
+const { Pool } = require('pg');
+
+/**
+ * Database seeding system
+ */
+class SeedSystem {
+  constructor(connectionString) {
+    this.pool = new Pool({
+      connectionString,
+      ssl: {
+        rejectUnauthorized: process.env.NODE_ENV === 'production' ? true : false
+      }
+    });
+  }
+  
+  /**
+   * Seed database with initial data
+   */
+  async seedDatabase() {
+    const client = await this.pool.connect();
+    
+    try {
+      // Start transaction
+      await client.query('BEGIN');
+      
+      // Seed users
+      await this.seedUsers(client);
+      
+      // Seed accounts
+      await this.seedAccounts(client);
+      
+      // Commit transaction
+      await client.query('COMMIT');
+      
+      return { success: true };
+    } catch (error) {
+      // Rollback transaction on error
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      // Release client
+      client.release();
+    }
+  }
+  
+  /**
+   * Seed users table
+   * @param {Object} client - Database client
+   */
+  async seedUsers(client) {
+    console.log('Seeding users...');
+    
+    // Check if users already exist
+    const usersResult = await client.query('SELECT COUNT(*) FROM users');
+    
+    if (parseInt(usersResult.rows[0].count) > 0) {
+      console.log('Users already exist, skipping seed');
+      return;
+    }
+    
+    // Create test users
+    const testUsers = [
+      {
+        email: 'admin@example.com',
+        password: 'AdminP@ssw0rd123',
+        role: 'admin'
+      },
+      {
+        email: 'user@example.com',
+        password: 'UserP@ssw0rd123',
+        role: 'user'
+      }
+    ];
+    
+    // Insert users
+    for (const user of testUsers) {
+      // Hash password
+      const hashedPassword = await bcrypt.hash(user.password, 12);
+      
+      // Insert user
+      await client.query(
+        'INSERT INTO users (email, password, role, created_at) VALUES ($1, $2, $3, NOW())',
+        [user.email, hashedPassword, user.role]
+      );
+      
+      console.log(`Created user: ${user.email}`);
+    }
+  }
+  
+  /**
+   * Seed accounts table
+   * @param {Object} client - Database client
+   */
+  async seedAccounts(client) {
+    console.log('Seeding accounts...');
+    
+    // Check if accounts already exist
+    const accountsResult = await client.query('SELECT COUNT(*) FROM accounts');
+    
+    if (parseInt(accountsResult.rows[0].count) > 0) {
+      console.log('Accounts already exist, skipping seed');
+      return;
+    }
+    
+    // Get user IDs
+    const usersResult = await client.query('SELECT id, email FROM users');
+    const users = usersResult.rows;
+    
+    // Create accounts for each user
+    for (const user of users) {
+      // Create checking account
+      await client.query(
+        'INSERT INTO accounts (user_id, name, type, balance, created_at) VALUES ($1, $2, $3, $4, NOW())',
+        [user.id, 'Checking', 'checking', 1000.00]
+      );
+      
+      // Create savings account
+      await client.query(
+        'INSERT INTO accounts (user_id, name, type, balance, created_at) VALUES ($1, $2, $3, $4, NOW())',
+        [user.id, 'Savings', 'savings', 5000.00]
+      );
+      
+      console.log(`Created accounts for user: ${user.email}`);
+    }
+  }
+  
+  /**
+   * Close database connection
+   */
+  async close() {
+    await this.pool.end();
+  }
+}
+
+// Run seeds if executed directly
+if (require.main === module) {
+  const connectionString = process.env.DATABASE_URL;
+  
+  if (!connectionString) {
+    console.error('DATABASE_URL environment variable is required');
+    process.exit(1);
+  }
+  
+  const seeder = new SeedSystem(connectionString);
+  
+  seeder.seedDatabase()
+    .then(result => {
+      console.log('Seeding result:', result);
+      return seeder.close();
+    })
+    .catch(err => {
+      console.error('Seeding failed:', err);
+      process.exit(1);
+    });
+}
+
+module.exports = SeedSystem;
+
+Save the file
+
+File to modify: server/package.json
+Steps:
+
+Open server/package.json
+Add migration and seed scripts:
+json"scripts": {
+  "start": "node index.js",
+  "dev": "nodemon index.js",
+  "test": "jest",
+  "test:watch": "jest --watch",
+  "test:coverage": "jest --coverage",
+  "migrate": "node migrations/index.js",
+  "seed": "node seeds/seed.js",
+  "db:setup": "npm run migrate && npm run seed"
+}
+
+Save the file
+
+3. Enhance API Documentation
+File to create: server/swagger.json
+Steps:
+
+Install required packages:
+bashnpm install swagger-ui-express --save
+
+Create a new file at server/swagger.json
+Add the following code:
+json{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Banking Platform API",
+    "description": "API documentation for the Banking Platform",
+    "version": "1.0.0",
+    "contact": {
+      "email": "support@bankingplatform.com"
+    }
+  },
+  "servers": [
+    {
+      "url": "/api",
+      "description": "API server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": false
+          },
+          "message": {
+            "type": "string",
+            "example": "An error occurred"
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "user123"
+          },
+          "email": {
+            "type": "string",
+            "example": "user@example.com"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Account": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "acc123"
+          },
+          "user_id": {
+            "type": "string",
+            "example": "user123"
+          },
+          "name": {
+            "type": "string",
+            "example": "Checking"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["checking", "savings", "credit"],
+            "example": "checking"
+          },
+          "balance": {
+            "type": "number",
+            "example": 1000.00
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Transaction": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "tx123"
+          },
+          "from_account_id": {
+            "type": "string",
+            "example": "acc123"
+          },
+          "to_account_id": {
+            "type": "string",
+            "example": "acc456"
+          },
+          "amount": {
+            "type": "number",
+            "example": 100.00
+          },
+          "type": {
+            "type": "string",
+            "enum": ["transfer", "deposit", "withdrawal"],
+            "example": "transfer"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "completed", "failed"],
+            "example": "completed"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "KycVerification": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "kyc123"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["not_started", "pending", "approved", "rejected", "failed"],
+            "example": "approved"
+          },
+          "documentType": {
+            "type": "string",
+            "example": "id_card"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "verifiedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/auth/register": {
+      "post": {
+        "summary": "Register a new user",
+        "description": "Create a new user account",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User registered successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "User registered successfully"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/User"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "summary": "User login",
+        "description": "Authenticate a user and get access token",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Login successful"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "token": {
+                          "type": "string",
+                          "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                        },
+                        "user": {
+                          "$ref": "#/components/schemas/User"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/accounts": {
+      "get": {
+        "summary": "Get user accounts",
+        "description": "Get all accounts for the authenticated user",
+        "responses": {
+          "200":

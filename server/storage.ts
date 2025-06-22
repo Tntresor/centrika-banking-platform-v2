@@ -86,6 +86,15 @@ export class DatabaseStorage implements IStorage {
     return wallet;
   }
 
+  async createWalletWithInitialBalance(insertWallet: InsertWallet, initialBalance: string = '1000.00'): Promise<Wallet> {
+    const walletData = {
+      ...insertWallet,
+      balance: initialBalance
+    };
+    const [wallet] = await db.insert(wallets).values(walletData).returning();
+    return wallet;
+  }
+
   async updateWalletBalance(walletId: number, amount: string): Promise<Wallet> {
     const [wallet] = await db.update(wallets).set({ balance: amount }).where(eq(wallets.id, walletId)).returning();
     return wallet;

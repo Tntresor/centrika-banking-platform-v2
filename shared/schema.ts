@@ -376,3 +376,7 @@ export type RiskProfile = typeof riskProfiles.$inferSelect;
 export type InsertRiskProfile = typeof riskProfiles.$inferInsert;
 export type ComplianceCase = typeof complianceCases.$inferSelect;
 export type InsertComplianceCase = typeof complianceCases.$inferInsert;
+export type CreditFacility = typeof creditFacilities.$inferSelect;
+export type InsertCreditFacility = typeof creditFacilities.$inferInsert;
+export type CreditRepayment = typeof creditRepayments.$inferSelect;
+export type InsertCreditRepayment = typeof creditRepayments.$inferInsert;

@@ -173,6 +173,15 @@ A comprehensive mobile neobank application for Rwanda featuring:
   - Migrations de base de données avec suivi et rollback capabilities
   - Support Docker et nginx avec SSL, compression et rate limiting
   - Audit complet avec JSONB storage et requêtes optimisées
+- 2025-06-22: SERVICES BANCAIRES AVANCÉS INTÉGRÉS:
+  - Service KYC/AML avec vérification de documents et niveaux de conformité
+  - Service de crédit avec découvert (30 jours) et crédit personnel (3-12 mois)
+  - Middleware de conformité avec vérification automatique des limites
+  - Calcul automatique des taux d'intérêt selon profil et durée
+  - Interface mobile améliorée avec micro-interactions et animations fluides
+  - Tests automatisés avec génération de données de test (10 utilisateurs, 100 transactions)
+  - Guide d'intégration UI/UX pour personnalisation du design
+  - Support des wallets avec montant initial paramétrable
 
 ## User Preferences
 - Focus on authentic data integration

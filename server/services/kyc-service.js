@@ -1,139 +1,208 @@
-const { storage } = require('../storage-supabase');
-const { auditLog, auditActions } = require('./audit-service');
-const { encryptionService } = require('./encryption-service');
+const { AppError, ErrorCodes } = require('../utils/errors');
+const { Logger } = require('../utils/logger');
 
+/**
+ * Service for Know Your Customer (KYC) operations
+ */
 class KycService {
-  constructor() {
+  constructor(storage, auditService) {
     this.storage = storage;
+    this.auditService = auditService;
+    this.logger = new Logger('KYCService');
   }
   
-  async verifyCustomer(userId, documentType, documentData, clientInfo = {}) {
+  /**
+   * Verify a customer's identity using provided documents
+   */
+  async verifyCustomer(userId, documentType, documentData, ipAddress) {
     return await this.storage.executeTransaction(async (client) => {
-      // Encrypt sensitive document data
-      const encryptedData = encryptionService.encrypt(JSON.stringify(documentData));
-      
       // Store verification attempt
       const verificationResult = await client.query(
-        `INSERT INTO kyc_documents (user_id, document_type, document_url, verification_status, verification_score, created_at) 
-         VALUES ($1, $2, $3, $4, $5, NOW()) RETURNING id`,
-        [userId, documentType, JSON.stringify(encryptedData), 'pending', 0]
+        'INSERT INTO kyc_documents (user_id, document_type, status, created_at) VALUES ($1, $2, $3, NOW()) RETURNING id',
+        [userId, documentType, 'pending']
       );
       
       const verificationId = verificationResult.rows[0].id;
       
-      // Log KYC document upload
-      await auditLog(auditActions.KYC_DOCUMENT_UPLOADED, userId, {
+      // Log the verification attempt
+      await this.auditService.log('kyc_verification_initiated', userId, {
         documentType,
         verificationId,
-        ip: clientInfo.ip,
-        userAgent: clientInfo.userAgent
+        ip: ipAddress
       }, client);
       
-      // Simulate external verification service call
-      const verificationScore = await this.callExternalVerification(documentType, documentData);
-      
-      // Determine status based on score
-      let status = 'rejected';
-      if (verificationScore >= 85) {
-        status = 'approved';
-      } else if (verificationScore >= 60) {
-        status = 'under_review';
-      }
-      
-      // Update verification status
-      await client.query(
-        `UPDATE kyc_documents SET verification_status = $1, verification_score = $2, reviewed_at = NOW() 
-         WHERE id = $3`,
-        [status, verificationScore, verificationId]
-      );
-      
-      // Update user KYC status if approved
-      if (status === 'approved') {
+      try {
+        // Call external verification service (simulated)
+        const externalResult = await this.callExternalVerification(documentType, documentData);
+        
+        // Update verification status
         await client.query(
-          'UPDATE users SET kyc_status = $1, updated_at = NOW() WHERE id = $2',
-          ['approved', userId]
+          'UPDATE kyc_documents SET status = $1, verified_at = NOW(), document_data = $2 WHERE id = $3',
+          [externalResult.status, JSON.stringify(externalResult), verificationId]
         );
         
-        // Update wallet KYC level
+        // Update user KYC status if approved
+        if (externalResult.status === 'approved') {
+          await client.query(
+            'UPDATE users SET kyc_status = $1, updated_at = NOW() WHERE id = $2',
+            ['verified', userId]
+          );
+        }
+        
+        // Log the verification result
+        await this.auditService.log('kyc_verification_completed', userId, {
+          documentType,
+          verificationId,
+          status: externalResult.status,
+          ip: ipAddress
+        }, client);
+        
+        return {
+          id: verificationId,
+          status: externalResult.status,
+          details: externalResult.details
+        };
+      } catch (error) {
+        // Update verification status to failed
         await client.query(
-          'UPDATE wallets SET kyc_level = $1, updated_at = NOW() WHERE user_id = $2',
-          [3, userId] // Higher KYC level allows higher transaction limits
+          'UPDATE kyc_documents SET status = $1, document_data = $2 WHERE id = $3',
+          ['rejected', JSON.stringify({ error: error.message }), verificationId]
         );
+        
+        // Log the failure
+        await this.auditService.log('kyc_verification_failed', userId, {
+          documentType,
+          verificationId,
+          error: error.message,
+          ip: ipAddress
+        }, client);
+        
+        throw error;
       }
-      
-      // Log KYC status change
-      await auditLog(auditActions.KYC_STATUS_CHANGED, userId, {
-        verificationId,
-        newStatus: status,
-        score: verificationScore,
-        documentType,
-        ip: clientInfo.ip,
-        userAgent: clientInfo.userAgent
-      }, client);
-      
-      return {
-        verificationId,
-        status,
-        score: verificationScore,
-        message: this.getStatusMessage(status, verificationScore)
-      };
     });
   }
   
+  /**
+   * Check if a user has been verified
+   */
   async isVerified(userId) {
     const result = await this.storage.executeQuery(
       'SELECT kyc_status FROM users WHERE id = $1',
       [userId]
     );
     
-    return result.rows.length > 0 && result.rows[0].kyc_status === 'approved';
+    return result.rows.length > 0 && result.rows[0].kyc_status === 'verified';
   }
   
-  async getKYCStatus(userId) {
+  /**
+   * Get verification status for a user
+   */
+  async getVerificationStatus(userId) {
     const result = await this.storage.executeQuery(
-      `SELECT u.kyc_status, k.verification_status, k.verification_score, k.document_type, k.created_at
-       FROM users u 
-       LEFT JOIN kyc_documents k ON u.id = k.user_id 
-       WHERE u.id = $1 
-       ORDER BY k.created_at DESC LIMIT 1`,
+      'SELECT * FROM kyc_documents WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
       [userId]
     );
     
-    return result.rows[0] || { kyc_status: 'pending' };
+    if (result.rows.length === 0) {
+      return { status: 'not_started' };
+    }
+    
+    return {
+      id: result.rows[0].id,
+      status: result.rows[0].status,
+      documentType: result.rows[0].document_type,
+      createdAt: result.rows[0].created_at,
+      verifiedAt: result.rows[0].verified_at
+    };
   }
   
+  /**
+   * Get KYC tier based on verification level
+   */
+  async getKycTier(userId) {
+    const isVerified = await this.isVerified(userId);
+    if (!isVerified) return 1;
+    
+    // Check for additional verification documents
+    const result = await this.storage.executeQuery(
+      'SELECT COUNT(*) as doc_count FROM kyc_documents WHERE user_id = $1 AND status = $2',
+      [userId, 'approved']
+    );
+    
+    const docCount = parseInt(result.rows[0].doc_count);
+    
+    if (docCount >= 3) return 3; // Full KYC
+    if (docCount >= 2) return 2; // Enhanced KYC
+    return 1; // Basic KYC
+  }
+  
+  /**
+   * Get transaction limits based on KYC tier
+   */
+  getTransactionLimits(kycTier) {
+    const limits = {
+      1: { // Basic KYC
+        daily: 50000,
+        monthly: 500000,
+        single: 25000
+      },
+      2: { // Enhanced KYC
+        daily: 500000,
+        monthly: 2000000,
+        single: 250000
+      },
+      3: { // Full KYC
+        daily: 1000000,
+        monthly: 10000000,
+        single: 1000000
+      }
+    };
+    
+    return limits[kycTier] || limits[1];
+  }
+  
+  /**
+   * Simulated external verification service call
+   */
   async callExternalVerification(documentType, documentData) {
-    // Simulate external KYC verification service
-    // In production, this would call actual services like Jumio, Onfido, etc.
+    // Simulate API call delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
     
-    // Basic simulation based on document completeness
-    let score = 50; // Base score
+    // Simple validation simulation
+    if (!documentData || Object.keys(documentData).length === 0) {
+      return {
+        status: 'rejected',
+        details: {
+          reason: 'empty_document',
+          message: 'Document data is empty or invalid'
+        }
+      };
+    }
     
-    if (documentData.documentImage) score += 20;
-    if (documentData.selfieImage) score += 15;
-    if (documentData.documentNumber && documentData.documentNumber.length > 5) score += 10;
-    if (documentData.fullName && documentData.fullName.length > 3) score += 5;
+    // Simulate approval with 85% chance for testing
+    const isApproved = Math.random() < 0.85;
     
-    // Add randomness to simulate real-world verification
-    score += Math.floor(Math.random() * 20) - 10;
-    
-    // Ensure score is within valid range
-    return Math.max(0, Math.min(100, score));
-  }
-  
-  getStatusMessage(status, score) {
-    switch (status) {
-      case 'approved':
-        return 'KYC verification completed successfully. Your account is now fully verified.';
-      case 'under_review':
-        return 'Your documents are under manual review. This may take 1-3 business days.';
-      case 'rejected':
-        return 'KYC verification failed. Please ensure your documents are clear and valid.';
-      default:
-        return 'KYC verification is pending.';
+    if (isApproved) {
+      return {
+        status: 'approved',
+        details: {
+          verificationScore: Math.floor(Math.random() * 30) + 70, // 70-99
+          verifiedFields: ['name', 'date_of_birth', 'document_number'],
+          timestamp: new Date().toISOString()
+        }
+      };
+    } else {
+      return {
+        status: 'rejected',
+        details: {
+          reason: 'verification_failed',
+          message: 'Unable to verify document authenticity',
+          failedFields: ['document_number'],
+          timestamp: new Date().toISOString()
+        }
+      };
     }
   }
 }
 
-const kycService = new KycService();
-module.exports = { KycService, kycService };
+module.exports = { KycService };

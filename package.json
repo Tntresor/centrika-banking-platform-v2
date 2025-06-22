@@ -10,6 +10,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.54.0",
     "@babel/core": "^7.27.4",
+    "@faker-js/faker": "^9.8.0",
     "@neondatabase/serverless": "^1.0.1",
     "@react-navigation/native": "^6.1.18",
     "@react-navigation/stack": "^6.4.1",

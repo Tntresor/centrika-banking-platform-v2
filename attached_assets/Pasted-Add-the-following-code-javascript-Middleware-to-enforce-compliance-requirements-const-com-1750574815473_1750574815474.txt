@@ -1,0 +1,611 @@
+Add the following code:
+javascript/**
+ * Middleware to enforce compliance requirements
+ */
+const complianceMiddleware = (kycService, auditService) => async (req, res, next) => {
+  try {
+    // Skip for public routes and non-financial operations
+    if (req.path.startsWith('/api/auth') || 
+        req.path.startsWith('/api/kyc') || 
+        req.path === '/health' ||
+
+RéessayerTContinuerModifierPhase 3: Compliance & Banking-Specific Requirements (Continued)
+2. Add Compliance Middleware (Continued)
+File to create: server/middleware/compliance-middleware.js (continued)
+javascript           req.method === 'GET') {
+         return next();
+       }
+       
+       // Check if user is authenticated
+       if (!req.user) {
+         return res.status(401).json({
+           success: false,
+           message: 'Authentication required'
+         });
+       }
+       
+       // Check KYC verification for sensitive operations
+       if (req.path.startsWith('/api/transfers') || req.path.startsWith('/api/payments')) {
+         const isVerified = await kycService.isVerified(req.user.id);
+         
+         if (!isVerified) {
+           // Log compliance block
+           await auditService.log('compliance_block', req.user.id, {
+             reason: 'kyc_verification_required',
+             endpoint: req.path,
+             method: req.method,
+             ip: req.ip
+           });
+           
+           return res.status(403).json({
+             success: false,
+             message: 'KYC verification required for this operation',
+             code: 'KYC_REQUIRED'
+           });
+         }
+       }
+       
+       // Check transaction limits for payment operations
+       if (req.path.startsWith('/api/transfers') || req.path.startsWith('/api/payments')) {
+         const amount = parseFloat(req.body.amount);
+         
+         // Example transaction limit checks
+         if (amount > 10000) {
+           // Log high-value transaction
+           await auditService.log('high_value_transaction', req.user.id, {
+             amount,
+             endpoint: req.path,
+             ip: req.ip
+           });
+           
+           // Additional verification could be required here
+         }
+       }
+       
+       next();
+     } catch (error) {
+       console.error('Compliance middleware error:', error);
+       next(error);
+     }
+   };
+   
+   module.exports = complianceMiddleware;
+
+Save the file
+
+File to modify: server/index.js
+Steps:
+
+Open server/index.js
+Add the compliance middleware import:
+javascriptconst complianceMiddleware = require('./middleware/compliance-middleware');
+
+Initialize KYC service if not already done:
+javascriptconst KycService = require('./services/kyc-service');
+const kycService = new KycService(storage, auditService);
+
+Add the compliance middleware (after authentication middleware):
+javascript// Apply compliance middleware to all routes
+app.use(complianceMiddleware(kycService, auditService));
+
+Save the file
+
+3. Data Encryption Implementation
+File to create: server/services/encryption-service.js
+Steps:
+
+Create a new file at server/services/encryption-service.js
+Add the following code:
+javascriptconst crypto = require('crypto');
+
+/**
+ * Service for data encryption and decryption
+ */
+class EncryptionService {
+  /**
+   * Initialize encryption service
+   * @param {string} encryptionKey - Hex-encoded encryption key
+   */
+  constructor(encryptionKey) {
+    // Default to AES-256-GCM for authenticated encryption
+    this.algorithm = 'aes-256-gcm';
+    
+    // Convert hex key to buffer
+    if (!encryptionKey) {
+      throw new Error('Encryption key is required');
+    }
+    
+    // If key is provided as string, convert to buffer
+    this.encryptionKey = Buffer.from(encryptionKey, 'hex');
+    
+    // Validate key length (32 bytes for AES-256)
+    if (this.encryptionKey.length !== 32) {
+      throw new Error('Encryption key must be 32 bytes (64 hex characters)');
+    }
+  }
+  
+  /**
+   * Encrypt data
+   * @param {string} text - Text to encrypt
+   * @returns {Object} - Encrypted data with IV and auth tag
+   */
+  encrypt(text) {
+    if (typeof text !== 'string') {
+      throw new Error('Only string data can be encrypted');
+    }
+    
+    // Generate random initialization vector
+    const iv = crypto.randomBytes(16);
+    
+    // Create cipher with key, IV and algorithm
+    const cipher = crypto.createCipheriv(this.algorithm, this.encryptionKey, iv);
+    
+    // Encrypt the data
+    let encrypted = cipher.update(text, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    
+    // Get authentication tag
+    const authTag = cipher.getAuthTag().toString('hex');
+    
+    // Return encrypted data with IV and auth tag
+    return {
+      iv: iv.toString('hex'),
+      encryptedData: encrypted,
+      authTag
+    };
+  }
+  
+  /**
+   * Decrypt data
+   * @param {string} encryptedData - Hex-encoded encrypted data
+   * @param {string} iv - Hex-encoded initialization vector
+   * @param {string} authTag - Hex-encoded authentication tag
+   * @returns {string} - Decrypted text
+   */
+  decrypt(encryptedData, iv, authTag) {
+    try {
+      // Create decipher
+      const decipher = crypto.createDecipheriv(
+        this.algorithm, 
+        this.encryptionKey, 
+        Buffer.from(iv, 'hex')
+      );
+      
+      // Set auth tag for verification
+      decipher.setAuthTag(Buffer.from(authTag, 'hex'));
+      
+      // Decrypt data
+      let decrypted = decipher.update(encryptedData, 'hex', 'utf8');
+      decrypted += decipher.final('utf8');
+      
+      return decrypted;
+    } catch (error) {
+      throw new Error('Decryption failed: data may be corrupted or tampered with');
+    }
+  }
+  
+  /**
+   * Hash sensitive data (one-way)
+   * @param {string} data - Data to hash
+   * @returns {string} - Hashed data
+   */
+  hash(data) {
+    return crypto
+      .createHash('sha256')
+      .update(data)
+      .digest('hex');
+  }
+}
+
+module.exports = EncryptionService;
+
+Save the file
+
+File to create: server/services/sensitive-data-service.js
+Steps:
+
+Create a new file at server/services/sensitive-data-service.js
+Add the following code:
+javascript/**
+ * Service for handling sensitive user data
+ */
+class SensitiveDataService {
+  constructor(storage, encryptionService, auditService) {
+    this.storage = storage;
+    this.encryptionService = encryptionService;
+    this.auditService = auditService;
+  }
+  
+  /**
+   * Store sensitive user data (PII)
+   */
+  async storeSensitiveData(userId, dataType, dataValue, ipAddress) {
+    return await this.storage.executeTransaction(async (client) => {
+      // Encrypt the sensitive data
+      const encrypted = this.encryptionService.encrypt(dataValue);
+      
+      // Store in database
+      const result = await client.query(
+        `INSERT INTO sensitive_data 
+         (user_id, data_type, encrypted_data, iv, auth_tag, created_at) 
+         VALUES ($1, $2, $3, $4, $5, NOW())
+         RETURNING id`,
+        [
+          userId, 
+          dataType, 
+          encrypted.encryptedData, 
+          encrypted.iv, 
+          encrypted.authTag
+        ]
+      );
+      
+      const dataId = result.rows[0].id;
+      
+      // Log the action
+      await this.auditService.log('sensitive_data_stored', userId, {
+        dataType,
+        dataId,
+        ip: ipAddress
+      }, client);
+      
+      return { id: dataId };
+    });
+  }
+  
+  /**
+   * Retrieve sensitive data
+   */
+  async getSensitiveData(userId, dataType, ipAddress) {
+    // Query database for encrypted data
+    const result = await this.storage.executeQuery(
+      `SELECT id, encrypted_data, iv, auth_tag
+       FROM sensitive_data
+       WHERE user_id = $1 AND data_type = $2
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [userId, dataType]
+    );
+    
+    if (result.rows.length === 0) {
+      return null;
+    }
+    
+    const data = result.rows[0];
+    
+    try {
+      // Decrypt the data
+      const decrypted = this.encryptionService.decrypt(
+        data.encrypted_data,
+        data.iv,
+        data.auth_tag
+      );
+      
+      // Log access
+      await this.auditService.log('sensitive_data_accessed', userId, {
+        dataType,
+        dataId: data.id,
+        ip: ipAddress
+      });
+      
+      return decrypted;
+    } catch (error) {
+      // Log failed decryption
+      await this.auditService.log('sensitive_data_decryption_failed', userId, {
+        dataType,
+        dataId: data.id,
+        error: error.message,
+        ip: ipAddress
+      });
+      
+      throw new Error('Failed to decrypt sensitive data');
+    }
+  }
+  
+  /**
+   * Update sensitive data
+   */
+  async updateSensitiveData(userId, dataType, newValue, ipAddress) {
+    return await this.storage.executeTransaction(async (client) => {
+      // Encrypt the new data
+      const encrypted = this.encryptionService.encrypt(newValue);
+      
+      // Insert new record with updated data
+      const result = await client.query(
+        `INSERT INTO sensitive_data 
+         (user_id, data_type, encrypted_data, iv, auth_tag, created_at) 
+         VALUES ($1, $2, $3, $4, $5, NOW())
+         RETURNING id`,
+        [
+          userId, 
+          dataType, 
+          encrypted.encryptedData, 
+          encrypted.iv, 
+          encrypted.authTag
+        ]
+      );
+      
+      const dataId = result.rows[0].id;
+      
+      // Log the action
+      await this.auditService.log('sensitive_data_updated', userId, {
+        dataType,
+        dataId,
+        ip: ipAddress
+      }, client);
+      
+      return { id: dataId };
+    });
+  }
+  
+  /**
+   * Delete sensitive data
+   */
+  async deleteSensitiveData(userId, dataType, ipAddress) {
+    const result = await this.storage.executeQuery(
+      `UPDATE sensitive_data
+       SET deleted_at = NOW()
+       WHERE user_id = $1 AND data_type = $2 AND deleted_at IS NULL
+       RETURNING id`,
+      [userId, dataType]
+    );
+    
+    if (result.rows.length === 0) {
+      return { success: false };
+    }
+    
+    // Log the action
+    await this.auditService.log('sensitive_data_deleted', userId, {
+      dataType,
+      count: result.rows.length,
+      ip: ipAddress
+    });
+    
+    return { 
+      success: true,
+      count: result.rows.length
+    };
+  }
+}
+
+module.exports = SensitiveDataService;
+
+Save the file
+
+Database migration file to create: server/migrations/003-create-sensitive-data-table.sql
+Steps:
+
+Create a new file at server/migrations/003-create-sensitive-data-table.sql
+Add the following SQL:
+sql-- Create sensitive_data table
+CREATE TABLE IF NOT EXISTS sensitive_data (
+  id SERIAL PRIMARY KEY,
+  user_id VARCHAR(255) NOT NULL,
+  data_type VARCHAR(50) NOT NULL,
+  encrypted_data TEXT NOT NULL,
+  iv TEXT NOT NULL,
+  auth_tag TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  deleted_at TIMESTAMP
+);
+
+-- Create indexes
+CREATE INDEX IF NOT EXISTS idx_sensitive_data_user_id ON sensitive_data(user_id);
+CREATE INDEX IF NOT EXISTS idx_sensitive_data_type ON sensitive_data(data_type);
+CREATE INDEX IF NOT EXISTS idx_sensitive_data_active ON sensitive_data(user_id, data_type) WHERE deleted_at IS NULL;
+
+Save the file
+Execute this SQL against your database (manually or using a migration tool)
+
+File to modify: server/index.js
+Steps:
+
+Open server/index.js
+Add the encryption service imports:
+javascriptconst EncryptionService = require('./services/encryption-service');
+const SensitiveDataService = require('./services/sensitive-data-service');
+
+Initialize encryption service (after other service initializations):
+javascript// Get encryption key from environment or generate one
+// WARNING: In production, this should ALWAYS be set in environment
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex');
+
+if (!process.env.ENCRYPTION_KEY) {
+  console.warn('⚠️ No ENCRYPTION_KEY found in environment. Using a generated key.');
+  console.warn('⚠️ THIS IS UNSAFE FOR PRODUCTION! Encrypted data will be lost on restart.');
+}
+
+// Initialize encryption service
+const encryptionService = new EncryptionService(ENCRYPTION_KEY);
+
+// Initialize sensitive data service
+const sensitiveDataService = new SensitiveDataService(
+  storage, 
+  encryptionService, 
+  auditService
+);
+
+Save the file
+
+Phase 4: Performance Optimization (4-6 Weeks)
+1. Optimize Database Connection Pool
+File to modify: server/storage-supabase.js
+Steps:
+
+Open server/storage-supabase.js
+Locate the database pool configuration (likely at the top of the file)
+Update the configuration with optimized settings:
+javascript// Create optimized connection pool
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: process.env.NODE_ENV === 'production' ? true : false
+  },
+  // Maximum number of clients the pool should contain
+  max: process.env.DB_POOL_MAX || 20,
+  // Maximum time (ms) a client can be idle before being closed
+  idleTimeoutMillis: process.env.DB_IDLE_TIMEOUT || 10000,
+  // Maximum time (ms) to wait for a connection before throwing an error
+  connectionTimeoutMillis: process.env.DB_CONNECTION_TIMEOUT || 5000,
+  // Number of milliseconds to wait before timing out when connecting a new client
+  // by default this is 0 which means no timeout
+  allowExitOnIdle: false,
+  // Close and replace a client after it has been used this many times
+  // This is useful to mitigate potential memory leaks
+  maxUses: 7500
+});
+
+// Add event listeners for pool status
+pool.on('error', (err, client) => {
+  console.error('Unexpected error on idle client', err);
+});
+
+pool.on('connect', (client) => {
+  console.log('New database connection established');
+});
+
+Add a method to check pool status (inside the storage class):
+javascript/**
+ * Get current status of the connection pool
+ */
+getPoolStatus() {
+  return {
+    totalCount: this.pool.totalCount,
+    idleCount: this.pool.idleCount,
+    waitingCount: this.pool.waitingCount
+  };
+}
+
+Save the file
+
+2. Implement Query Caching
+File to create: server/services/cache-service.js
+Steps:
+
+Install the required package:
+bashnpm install node-cache --save
+
+Create a new file at server/services/cache-service.js
+Add the following code:
+javascriptconst NodeCache = require('node-cache');
+
+/**
+ * Service for caching query results and other data
+ */
+class CacheService {
+  /**
+   * Initialize cache service
+   * @param {number} ttlSeconds - Default TTL in seconds
+   */
+  constructor(ttlSeconds = 60) {
+    this.cache = new NodeCache({
+      stdTTL: ttlSeconds,
+      checkperiod: ttlSeconds * 0.2,
+      useClones: false
+    });
+    
+    this.stats = {
+      hits: 0,
+      misses: 0,
+      keys: 0
+    };
+  }
+  
+  /**
+   * Get value from cache
+   * @param {string} key - Cache key
+   * @returns {*} - Cached value or undefined if not found
+   */
+  get(key) {
+    const value = this.cache.get(key);
+    
+    if (value === undefined) {
+      this.stats.misses++;
+    } else {
+      this.stats.hits++;
+    }
+    
+    return value;
+  }
+  
+  /**
+   * Set value in cache
+   * @param {string} key - Cache key
+   * @param {*} value - Value to cache
+   * @param {number} ttl - TTL in seconds
+   * @returns {boolean} - True if successful
+   */
+  set(key, value, ttl = undefined) {
+    this.stats.keys = this.cache.keys().length + 1;
+    return this.cache.set(key, value, ttl);
+  }
+  
+  /**
+   * Delete value from cache
+   * @param {string} key - Cache key
+   * @returns {number} - Number of deleted entries
+   */
+  delete(key) {
+    const deleted = this.cache.del(key);
+    this.stats.keys = this.cache.keys().length;
+    return deleted;
+  }
+  
+  /**
+   * Delete multiple keys by pattern
+   * @param {string} pattern - Regex pattern string to match keys
+   * @returns {number} - Number of deleted entries
+   */
+  deleteByPattern(pattern) {
+    const regex = new RegExp(pattern);
+    const keys = this.cache.keys();
+    let count = 0;
+    
+    for (const key of keys) {
+      if (regex.test(key)) {
+        this.cache.del(key);
+        count++;
+      }
+    }
+    
+    this.stats.keys = this.cache.keys().length;
+    return count;
+  }
+  
+  /**
+   * Flush all cache entries
+   * @returns {boolean} - True if successful
+   */
+  flush() {
+    this.stats.keys = 0;
+    return this.cache.flushAll();
+  }
+  
+  /**
+   * Get cache statistics
+   * @returns {Object} - Cache statistics
+   */
+  getStats() {
+    return {
+      hits: this.stats.hits,
+      misses: this.stats.misses,
+      keys: this.stats.keys,
+      hitRate: this.stats.hits + this.stats.misses > 0 
+        ? (this.stats.hits / (this.stats.hits + this.stats.misses)).toFixed(2) 
+        : 0
+    };
+  }
+  
+  /**
+   * Reset cache statistics
+   */
+  resetStats() {
+    this.stats = {
+      hits: 0,
+      misses: 0,
+      keys: this.cache.keys().length
+    };
+  }
+}
+
+module.exports = CacheService;
+

@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Centrika Banking - Application Mobile</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="styles/micro-interactions.css">
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #f8f9fa;
+            overflow-x: hidden;
+        }
+        
+        .mobile-container {
+            max-width: 375px;
+            margin: 0 auto;
+            background: white;
+            min-height: 100vh;
+            position: relative;
+            box-shadow: 0 0 30px rgba(0,0,0,0.1);
+        }
+        
+        .screen {
+            display: none;
+            padding: 20px;
+            min-height: 100vh;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .screen.active {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        
+        .status-bar {
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        .balance-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 20px;
+            padding: 25px;
+            margin: 20px 0;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .balance-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 100%;
+            height: 100%;
+            background: rgba(255,255,255,0.1);
+            border-radius: 50%;
+        }
+        
+        .quick-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .action-btn {
+            background: white;
+            border: none;
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            color: #333;
+            text-decoration: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .action-btn:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+        
+        .action-btn i {
+            font-size: 24px;
+            color: #007bff;
+        }
+        
+        .transaction-list {
+            margin-top: 30px;
+        }
+        
+        .transaction-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .transaction-item {
+            background: white;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .transaction-details {
+            flex: 1;
+        }
+        
+        .transaction-amount {
+            font-weight: 600;
+            font-size: 16px;
+        }
+        
+        .transaction-amount.positive {
+            color: #28a745;
+        }
+        
+        .transaction-amount.negative {
+            color: #dc3545;
+        }
+        
+        .form-card {
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            margin: 20px 0;
+        }
+        
+        .form-control {
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 15px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+        
+        .form-control:focus {
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0,123,255,0.1);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            border: none;
+            border-radius: 12px;
+            padding: 15px;
+            font-weight: 600;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,123,255,0.3);
+        }
+        
+        .navigation-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 25px;
+            padding-top: 10px;
+        }
+        
+        .back-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: #007bff;
+            padding: 0;
+        }
+        
+        .progress-indicator {
+            height: 4px;
+            background: #e9ecef;
+            border-radius: 2px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #007bff, #0056b3);
+            border-radius: 2px;
+            transition: width 0.8s ease;
+        }
+        
+        .notification-badge {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #dc3545;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: pulse 2s infinite;
+        }
+        
+        .floating-amount {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 123, 255, 0.9);
+            color: white;
+            padding: 20px 30px;
+            border-radius: 15px;
+            font-size: 24px;
+            font-weight: bold;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="mobile-container">
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <div>
+                <i class="bi bi-signal"></i>
+                <span class="ms-1">Centrika</span>
+            </div>
+            <div>
+                <span>14:30</span>
+                <i class="bi bi-battery-full ms-2"></i>
+            </div>
+        </div>
+
+        <!-- Login Screen -->
+        <div class="screen active" id="login">
+            <div class="text-center" style="margin-top: 60px;">
+                <div class="credit-card mb-4">
+                    <div class="card-inner">
+                        <div class="card-front">
+                            <h2 style="color: white; margin: 0;">CENTRIKA</h2>
+                            <p style="color: rgba(255,255,255,0.8); margin: 0;">Banque Digitale</p>
+                        </div>
+                        <div class="card-back">
+                            <h5>Innovation</h5>
+                            <p>Sécurité • Confiance</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <h3 class="mb-3" style="color: #333;">Bienvenue</h3>
+                <p class="text-muted mb-4">Connectez-vous à votre compte</p>
+            </div>
+            
+            <div class="form-card">
+                <form onsubmit="handleLogin(event)">
+                    <div class="mb-3">
+                        <label class="form-label">Téléphone</label>
+                        <input type="tel" class="form-control" placeholder="+250 788 123 456" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Code PIN</label>
+                        <input type="password" class="form-control" placeholder="••••" maxlength="4" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100 touch-feedback mb-3">Se connecter</button>
+                </form>
+                
+                <div class="text-center">
+                    <a href="#" class="text-primary">Mot de passe oublié ?</a>
+                </div>
+                
+                <div class="loading-spinner" id="loginSpinner" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- Dashboard Screen -->
+        <div class="screen" id="dashboard">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h5 class="mb-0">Bonjour, Marie</h5>
+                    <small class="text-muted">Votre compte est sécurisé</small>
+                </div>
+                <div class="position-relative">
+                    <i class="bi bi-bell" style="font-size: 24px; color: #007bff;"></i>
+                    <span class="notification-badge">3</span>
+                </div>
+            </div>
+            
+            <div class="balance-card">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <small style="opacity: 0.8;">Solde disponible</small>
+                        <div class="balance-amount h3 mb-0 pulse">
+                            <span class="front">125,450 RWF</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-link text-white p-0" onclick="toggleBalance()">
+                        <i class="bi bi-eye" id="balanceToggle"></i>
+                    </button>
+                </div>
+                
+                <div class="d-flex justify-content-between align-items-center">
+                    <small style="opacity: 0.8;">**** **** **** 1234</small>
+                    <small style="opacity: 0.8;">Centrika Card</small>
+                </div>
+            </div>
+            
+            <div class="quick-actions">
+                <a href="#" class="action-btn touch-feedback" onclick="showScreen('send')">
+                    <i class="bi bi-send"></i>
+                    <span>Envoyer</span>
+                </a>
+                <a href="#" class="action-btn touch-feedback" onclick="showScreen('receive')">
+                    <i class="bi bi-qr-code"></i>
+                    <span>Recevoir</span>
+                </a>
+                <a href="#" class="action-btn touch-feedback" onclick="showScreen('credit')">
+                    <i class="bi bi-credit-card"></i>
+                    <span>Crédit</span>
+                </a>
+                <a href="#" class="action-btn touch-feedback" onclick="showScreen('overdraft')">
+                    <i class="bi bi-cash-stack"></i>
+                    <span>Découvert</span>
+                </a>
+            </div>
+            
+            <div class="transaction-list">
+                <div class="transaction-header">
+                    <h6 class="mb-0">Transactions récentes</h6>
+                    <a href="#" class="text-primary">Voir tout</a>
+                </div>
+                
+                <div class="transaction-item">
+                    <div class="avatar bg-success text-white">
+                        <i class="bi bi-arrow-down"></i>
+                    </div>
+                    <div class="transaction-details">
+                        <div class="fw-medium">Réception</div>
+                        <small class="text-muted">Marie Uwimana</small>
+                    </div>
+                    <div class="text-end">
+                        <div class="transaction-amount positive">+15,000 RWF</div>
+                        <small class="text-muted">Il y a 2h</small>
+                    </div>
+                </div>
+                
+                <div class="transaction-item">
+                    <div class="avatar bg-primary text-white">
+                        <i class="bi bi-arrow-up"></i>
+                    </div>
+                    <div class="transaction-details">
+                        <div class="fw-medium">Envoi</div>
+                        <small class="text-muted">Jean Karenzi</small>
+                    </div>
+                    <div class="text-end">
+                        <div class="transaction-amount negative">-8,500 RWF</div>
+                        <small class="text-muted">Hier</small>
+                    </div>
+                </div>
+                
+                <div class="transaction-item">
+                    <div class="avatar bg-warning text-white">
+                        <i class="bi bi-shop"></i>
+                    </div>
+                    <div class="transaction-details">
+                        <div class="fw-medium">Achat</div>
+                        <small class="text-muted">Simba Supermarket</small>
+                    </div>
+                    <div class="text-end">
+                        <div class="transaction-amount negative">-12,300 RWF</div>
+                        <small class="text-muted">Hier</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Send Money Screen -->
+        <div class="screen" id="send">
+            <div class="navigation-header">
+                <button class="back-btn touch-feedback" onclick="showScreen('dashboard')">
+                    <i class="bi bi-arrow-left"></i>
+                </button>
+                <h5 class="mb-0">Envoyer de l'argent</h5>
+            </div>
+            
+            <div class="form-card">
+                <div class="mb-3">
+                    <label class="form-label">Destinataire</label>
+                    <input type="tel" class="form-control" placeholder="Numéro de téléphone ou nom">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Montant (RWF)</label>
+                    <input type="number" class="form-control amount-input" placeholder="0" oninput="animateAmount(this)">
+                    <div class="progress-indicator mt-2">
+                        <div class="progress-bar" id="amountProgress" style="width: 0%;"></div>
+                    </div>
+                    <small class="text-muted">Limite quotidienne: 1,000,000 RWF</small>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Message (optionnel)</label>
+                    <textarea class="form-control" rows="2" placeholder="Ajoutez un message"></textarea>
+                </div>
+                <button class="btn btn-primary w-100 touch-feedback" onclick="processSend()">
+                    <i class="bi bi-send me-2"></i>Envoyer
+                </button>
+            </div>
+            
+            <div class="form-card">
+                <h6 class="mb-3">Contacts récents</h6>
+                <div class="transaction-item" onclick="selectRecipient('Marie Uwimana', '+250 788 123 456')">
+                    <div class="avatar bg-primary text-white">MU</div>
+                    <div class="transaction-details">
+                        <div class="fw-medium">Marie Uwimana</div>
+                        <small class="text-muted">+250 788 123 456</small>
+                    </div>
+                    <div class="notification-badge">3</div>
+                </div>
+                <div class="transaction-item" onclick="selectRecipient('Jean Karenzi', '+250 788 987 654')">
+                    <div class="avatar bg-success text-white">JK</div>
+                    <div class="transaction-details">
+                        <div class="fw-medium">Jean Karenzi</div>
+                        <small class="text-muted">+250 788 987 654</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Credit Request Screen -->
+        <div class="screen" id="credit">
+            <div class="navigation-header">
+                <button class="back-btn touch-feedback" onclick="showScreen('dashboard')">
+                    <i class="bi bi-arrow-left"></i>
+                </button>
+                <h5 class="mb-0">Demande de Crédit</h5>
+            </div>
+            
+            <div class="form-card">
+                <h6 class="mb-2">Crédit Personnel</h6>
+                <p class="text-muted mb-4">Durée: 3 à 12 mois • Taux: 15-25% annuel</p>
+                
+                <div class="mb-3">
+                    <label class="form-label">Montant souhaité (RWF)</label>
+                    <input type="number" class="form-control amount-input" placeholder="0" max="5000000">
+                    <small class="text-muted">Maximum: 5,000,000 RWF selon votre profil KYC</small>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Durée</label>
+                    <select class="form-control">
+                        <option value="3">3 mois (15% annuel)</option>
+                        <option value="6">6 mois (17% annuel)</option>
+                        <option value="9">9 mois (19% annuel)</option>
+                        <option value="12">12 mois (20% annuel)</option>
+                    </select>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Motif du crédit</label>
+                    <select class="form-control">
+                        <option value="business">Financement entreprise</option>
+                        <option value="education">Éducation</option>
+                        <option value="emergency">Urgence médicale</option>
+                        <option value="equipment">Équipement</option>
+                        <option value="other">Autre</option>
+                    </select>
+                </div>
+                
+                <button class="btn btn-success w-100 touch-feedback" onclick="processCreditRequest()">
+                    <i class="bi bi-credit-card me-2"></i>Soumettre la demande
+                </button>
+            </div>
+            
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle me-2"></i>
+                <strong>Information:</strong> Votre demande sera étudiée dans les 24h. Un KYC vérifié est requis pour les montants > 200,000 RWF.
+            </div>
+        </div>
+
+        <!-- Overdraft Request Screen -->
+        <div class="screen" id="overdraft">
+            <div class="navigation-header">
+                <button class="back-btn touch-feedback" onclick="showScreen('dashboard')">
+                    <i class="bi bi-arrow-left"></i>
+                </button>
+                <h5 class="mb-0">Découvert Bancaire</h5>
+            </div>
+            
+            <div class="form-card">
+                <h6 class="mb-2">Facilité de Découvert</h6>
+                <p class="text-muted mb-4">Durée: 30 jours • Taux: 5% mensuel</p>
+                
+                <div class="mb-3">
+                    <label class="form-label">Montant souhaité (RWF)</label>
+                    <input type="number" class="form-control amount-input" placeholder="0" max="1000000">
+                    <small class="text-muted">Maximum: 1,000,000 RWF selon votre historique</small>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Motif (optionnel)</label>
+                    <textarea class="form-control" rows="3" placeholder="Expliquez brièvement le besoin..."></textarea>
+                </div>
+                
+                <button class="btn btn-warning w-100 touch-feedback" onclick="processOverdraftRequest()">
+                    <i class="bi bi-cash-stack me-2"></i>Demander le découvert
+                </button>
+            </div>
+            
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                <strong>Attention:</strong> Le découvert est automatiquement approuvé selon votre profil. Remboursement obligatoire sous 30 jours.
+            </div>
+        </div>
+
+        <!-- QR Code Screen -->
+        <div class="screen" id="receive">
+            <div class="navigation-header">
+                <button class="back-btn touch-feedback" onclick="showScreen('dashboard')">
+                    <i class="bi bi-arrow-left"></i>
+                </button>
+                <h5 class="mb-0">Recevoir de l'argent</h5>
+            </div>
+            
+            <div class="form-card text-center">
+                <h6 class="mb-3">Votre code QR</h6>
+                <div class="qr-overlay" style="width: 200px; height: 200px; margin: 0 auto; background: #f8f9fa; border-radius: 15px; display: flex; align-items: center; justify-content: center;">
+                    <div style="width: 160px; height: 160px; background: url('data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\"><rect width=\"100\" height=\"100\" fill=\"white\"/><rect x=\"10\" y=\"10\" width=\"10\" height=\"10\" fill=\"black\"/><rect x=\"30\" y=\"10\" width=\"10\" height=\"10\" fill=\"black\"/></svg>') no-repeat center; background-size: contain;"></div>
+                </div>
+                <p class="text-muted mt-3">Montrez ce code pour recevoir un paiement</p>
+                <div class="d-flex gap-2 mt-3">
+                    <button class="btn btn-outline-primary flex-fill">Partager</button>
+                    <button class="btn btn-outline-primary flex-fill">Montant fixe</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Floating Amount Display -->
+        <div class="floating-amount" id="floatingAmount"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let balanceVisible = true;
+        
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.classList.remove('active');
+            });
+            
+            setTimeout(() => {
+                document.getElementById(screenId).classList.add('active');
+                
+                if (screenId === 'dashboard') {
+                    const items = document.querySelectorAll('.transaction-item');
+                    items.forEach((item, index) => {
+                        item.style.animationDelay = `${index * 0.1}s`;
+                    });
+                }
+            }, 100);
+        }
+        
+        function handleLogin(event) {
+            event.preventDefault();
+            
+            const button = event.target.querySelector('button[type="submit"]');
+            const originalText = button.innerHTML;
+            const spinner = document.getElementById('loginSpinner');
+            
+            button.disabled = true;
+            button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Connexion...';
+            spinner.style.display = 'block';
+            
+            setTimeout(() => {
+                button.disabled = false;
+                button.innerHTML = originalText;
+                spinner.style.display = 'none';
+                
+                const alertDiv = document.createElement('div');
+                alertDiv.className = 'alert alert-success mt-3';
+                alertDiv.innerHTML = `
+                    <div class="success-checkmark"></div>
+                    Connexion réussie!
+                `;
+                
+                event.target.appendChild(alertDiv);
+                
+                setTimeout(() => {
+                    alertDiv.remove();
+                    showScreen('dashboard');
+                }, 1500);
+            }, 2000);
+        }
+        
+        function toggleBalance() {
+            const balanceElement = document.querySelector('.balance-amount');
+            const toggleIcon = document.getElementById('balanceToggle');
+            
+            if (balanceVisible) {
+                balanceElement.querySelector('.front').textContent = '••• ••• RWF';
+                toggleIcon.className = 'bi bi-eye-slash';
+            } else {
+                balanceElement.querySelector('.front').textContent = '125,450 RWF';
+                toggleIcon.className = 'bi bi-eye';
+            }
+            
+            balanceVisible = !balanceVisible;
+        }
+        
+        function animateAmount(input) {
+            const value = parseFloat(input.value) || 0;
+            const maxLimit = 1000000;
+            const percentage = (value / maxLimit) * 100;
+            
+            const progressBar = document.getElementById('amountProgress');
+            if (progressBar) {
+                progressBar.style.width = Math.min(percentage, 100) + '%';
+                
+                if (percentage > 80) {
+                    progressBar.style.background = 'linear-gradient(90deg, #ffc107, #e0a800)';
+                } else if (percentage > 50) {
+                    progressBar.style.background = 'linear-gradient(90deg, #28a745, #1e7e34)';
+                } else {
+                    progressBar.style.background = 'linear-gradient(90deg, #007bff, #0056b3)';
+                }
+            }
+            
+            // Show floating amount
+            if (value > 0) {
+                showFloatingAmount(value.toLocaleString() + ' RWF');
+            }
+        }
+        
+        function showFloatingAmount(amount) {
+            const floating = document.getElementById('floatingAmount');
+            floating.textContent = amount;
+            floating.style.display = 'block';
+            
+            setTimeout(() => {
+                floating.style.display = 'none';
+            }, 1000);
+        }
+        
+        function selectRecipient(name, phone) {
+            const recipientInput = document.querySelector('#send input[type="tel"]');
+            if (recipientInput) {
+                recipientInput.value = `${name} (${phone})`;
+                recipientInput.focus();
+                
+                recipientInput.style.borderColor = '#28a745';
+                setTimeout(() => {
+                    recipientInput.style.borderColor = '';
+                }, 1000);
+            }
+        }
+        
+        function processSend() {
+            const button = event.target;
+            const originalText = button.innerHTML;
+            
+            button.disabled = true;
+            button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Traitement...';
+            
+            setTimeout(() => {
+                button.disabled = false;
+                button.innerHTML = '<i class="bi bi-check-circle me-2"></i>Envoyé!';
+                button.classList.remove('btn-primary');
+                button.classList.add('btn-success');
+                
+                const successDiv = document.createElement('div');
+                successDiv.className = 'success-checkmark';
+                button.parentElement.appendChild(successDiv);
+                
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                    button.classList.remove('btn-success');
+                    button.classList.add('btn-primary');
+                    successDiv.remove();
+                    showScreen('dashboard');
+                }, 2000);
+            }, 2000);
+        }
+        
+        function processCreditRequest() {
+            const button = event.target;
+            const originalText = button.innerHTML;
+            
+            button.disabled = true;
+            button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Traitement...';
+            
+            setTimeout(() => {
+                button.disabled = false;
+                button.innerHTML = '<i class="bi bi-check-circle me-2"></i>Demande soumise!';
+                button.classList.remove('btn-success');
+                button.classList.add('btn-primary');
+                
+                const alertDiv = document.createElement('div');
+                alertDiv.className = 'alert alert-success mt-3';
+                alertDiv.innerHTML = `
+                    <div class="success-checkmark"></div>
+                    <strong>Succès!</strong> Votre demande de crédit a été soumise. Vous recevrez une réponse dans les 24h.
+                `;
+                button.parentElement.appendChild(alertDiv);
+                
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                    button.classList.remove('btn-primary');
+                    button.classList.add('btn-success');
+                    alertDiv.remove();
+                    showScreen('dashboard');
+                }, 3000);
+            }, 2000);
+        }
+        
+        function processOverdraftRequest() {
+            const button = event.target;
+            const originalText = button.innerHTML;
+            
+            button.disabled = true;
+            button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Traitement...';
+            
+            setTimeout(() => {
+                button.disabled = false;
+                button.innerHTML = '<i class="bi bi-check-circle me-2"></i>Découvert approuvé!';
+                button.classList.remove('btn-warning');
+                button.classList.add('btn-success');
+                
+                const alertDiv = document.createElement('div');
+                alertDiv.className = 'alert alert-success mt-3';
+                alertDiv.innerHTML = `
+                    <div class="success-checkmark"></div>
+                    <strong>Approuvé!</strong> Votre découvert est maintenant actif sur votre compte.
+                `;
+                button.parentElement.appendChild(alertDiv);
+                
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                    button.classList.remove('btn-success');
+                    button.classList.add('btn-warning');
+                    alertDiv.remove();
+                    showScreen('dashboard');
+                }, 3000);
+            }, 2000);
+        }
+        
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Centrika Banking App loaded');
+        });
+    </script>
+</body>
+</html>
