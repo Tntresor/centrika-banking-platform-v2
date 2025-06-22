@@ -1,4 +1,5 @@
 const express = require('express');
+const { storage } = require('../storage-supabase');
 const router = express.Router();
 
 // Mock data for comprehensive back-office functionality

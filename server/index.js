@@ -66,13 +66,16 @@ app.use((req, res, next) => {
 
 
 
+// Live admin routes for Supabase data
+const adminLiveRoutes = require('./routes/admin-live');
+
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/kyc', kycRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/cards', cardRoutes);
 app.use('/api/momo', momoRoutes);
-app.use('/api/admin', adminRoutes);
+app.use('/api/admin', adminLiveRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
