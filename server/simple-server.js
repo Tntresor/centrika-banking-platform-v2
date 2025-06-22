@@ -52,7 +52,13 @@ async function connectDB() {
 
 // Middleware
 app.use(cors({ 
-  origin: ['https://centrika-api.onrender.com', 'http://localhost:3000', 'http://localhost:5001', '*'],
+  origin: [
+    'https://centrika-api.onrender.com', 
+    'http://localhost:3000', 
+    'http://localhost:5001',
+    'https://91e993b2-54c3-4dd2-9af0-7a0727062cb7-00-2rkhsct4m0zt5.janeway.replit.dev',
+    '*'
+  ],
   credentials: true 
 }));
 app.use(express.json({ limit: '10mb' }));
