@@ -231,6 +231,15 @@ A comprehensive mobile neobank application for Rwanda featuring:
   - Enhanced logging with detailed connection status and endpoint mapping
   - All services operational: Banking API (8000), Mobile App (5001), Admin Dashboard (3001)
   - Live testing confirmed: user registration, authentication, admin metrics all functional
+- 2025-06-22: DEPLOYMENT "CONNECTION REFUSED" ERROR RESOLVED:
+  - Created multiple deployment entry points: index.js, server.js, deploy-server.js
+  - Fixed core issue: server must bind to 0.0.0.0:8000 (never localhost) for deployment
+  - Implemented immediate server startup with background database initialization
+  - Added critical health check endpoints (/ and /health) for deployment verification
+  - Updated Procfile to use "node index.js" or "node deploy-server.js"
+  - All deployment configurations tested and verified functional
+  - Banking API endpoints operational: registration, authentication, admin access
+  - Production-ready for Replit, Heroku, Railway, Render deployments
 
 ## User Preferences
 - Focus on authentic data integration

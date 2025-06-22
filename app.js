@@ -1,41 +1,38 @@
 #!/usr/bin/env node
 
-// Deployment server - specifically addresses Replit "connection refused" error
-// Ensures proper port binding and immediate server startup
+// Primary deployment entry point for Replit and cloud platforms
+// Ensures server starts on port 8000 with proper binding
 
 const express = require('express');
 const cors = require('cors');
 const { Client } = require('pg');
 
 const app = express();
-const PORT = parseInt(process.env.PORT) || 8000;
-const HOST = '0.0.0.0'; // Critical - never use localhost for deployment
+const PORT = process.env.PORT || 8000;
+const HOST = '0.0.0.0'; // Essential for deployment - never use localhost
 
-// Environment setup
-process.env.NODE_ENV = 'production';
+// Environment configuration
+process.env.NODE_ENV = process.env.NODE_ENV || 'production';
 process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres.tzwzmzakxgatyvhvngez:Xentrika2025!@aws-0-eu-west-3.pooler.supabase.com:6543/postgres';
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6d3ptemFreGdhdHl2aHZuZ2V6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAzODUwOTAsImV4cCI6MjA2NTk2MTA5MH0.623RCZAPWUGJlQgsfYRXS3E6riACjb2MLJACOZ2gHPc';
 
+// Database client
 let dbClient = null;
 
-// Database connection with timeout
-async function initializeDatabase() {
+async function connectDB() {
   try {
+    console.log('Connecting to database...');
     dbClient = new Client({
       connectionString: process.env.DATABASE_URL,
       ssl: { rejectUnauthorized: false },
       connectionTimeoutMillis: 8000,
     });
     
-    const connectionPromise = dbClient.connect();
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Database timeout')), 10000)
-    );
-    
-    await Promise.race([connectionPromise, timeoutPromise]);
-    console.log('Database connected');
+    await dbClient.connect();
+    console.log('Database connected successfully');
     return true;
   } catch (error) {
-    console.error('Database failed to connect:', error.message);
+    console.error('Database connection failed:', error.message);
     dbClient = null;
     return false;
   }
@@ -45,7 +42,7 @@ async function initializeDatabase() {
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 
-// Root endpoint - critical for deployment health checks
+// Essential endpoints for deployment health checks
 app.get('/', (req, res) => {
   res.json({
     service: 'Centrika Neobank API',
@@ -53,20 +50,21 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     timestamp: new Date().toISOString(),
     port: PORT,
+    host: HOST,
     database: dbClient ? 'connected' : 'disconnected'
   });
 });
 
-// Health endpoint
 app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    database: dbClient ? 'connected' : 'disconnected'
+    database: dbClient ? 'connected' : 'disconnected',
+    port: PORT
   });
 });
 
-// Authentication endpoints
+// Banking API endpoints
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { firstName, lastName, phone, password } = req.body;
@@ -79,9 +77,9 @@ app.post('/api/auth/register', async (req, res) => {
     }
     
     if (!dbClient) {
-      return res.status(503).json({
+      return res.status(500).json({
         success: false,
-        message: 'Database temporarily unavailable'
+        message: 'Database connection unavailable'
       });
     }
     
@@ -95,6 +93,7 @@ app.post('/api/auth/register', async (req, res) => {
     
     const user = result.rows[0];
     
+    // Create wallet for user
     await dbClient.query(
       'INSERT INTO wallets (user_id, balance, currency, is_active, kyc_level) VALUES ($1, $2, $3, $4, $5)',
       [user.id, '1000.00', 'RWF', true, 1]
@@ -105,7 +104,6 @@ app.post('/api/auth/register', async (req, res) => {
       message: 'Account created successfully',
       data: { userId: user.id }
     });
-    
   } catch (error) {
     console.error('Registration error:', error);
     res.status(500).json({
@@ -127,9 +125,9 @@ app.post('/api/auth/login', async (req, res) => {
     }
     
     if (!dbClient) {
-      return res.status(503).json({
+      return res.status(500).json({
         success: false,
-        message: 'Database temporarily unavailable'
+        message: 'Database connection unavailable'
       });
     }
     
@@ -152,14 +150,14 @@ app.post('/api/auth/login', async (req, res) => {
     if (!isValidPassword) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials'  
+        message: 'Invalid credentials'
       });
     }
     
     const jwt = require('jsonwebtoken');
     const token = jwt.sign(
       { userId: user.id, phone: user.phone },
-      process.env.JWT_SECRET || 'fallback-secret',
+      process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
     
@@ -175,7 +173,6 @@ app.post('/api/auth/login', async (req, res) => {
         }
       }
     });
-    
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({
@@ -185,38 +182,59 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// Start server immediately - this is the key fix for deployment
-function startServer() {
-  console.log('Starting Centrika Banking Server for deployment');
+// Start server function
+async function startServer() {
+  console.log('Starting Centrika Banking API Server');
+  console.log(`Environment: ${process.env.NODE_ENV}`);
   console.log(`Host: ${HOST}`);
   console.log(`Port: ${PORT}`);
   
-  // Start HTTP server first - critical for avoiding "connection refused"
+  // Start server immediately
   const server = app.listen(PORT, HOST, () => {
-    console.log(`Server is running on port ${PORT}`);
-    console.log('Deployment health check ready');
+    console.log(`Server running on http://${HOST}:${PORT}`);
+    console.log('Health check endpoint: /health');
+    console.log('API endpoints: /api/auth/register, /api/auth/login');
   });
   
-  // Initialize database in background
-  setTimeout(() => {
-    initializeDatabase().then(connected => {
-      console.log(`Database: ${connected ? 'connected' : 'failed'}`);
+  // Connect database in background
+  connectDB().then(connected => {
+    console.log(`Database status: ${connected ? 'Connected' : 'Disconnected'}`);
+  }).catch(error => {
+    console.error('Database connection error:', error.message);
+  });
+  
+  // Graceful shutdown
+  process.on('SIGTERM', async () => {
+    console.log('Shutting down server...');
+    if (dbClient) {
+      await dbClient.end();
+    }
+    server.close(() => {
+      console.log('Server closed');
+      process.exit(0);
     });
-  }, 100);
+  });
   
   return server;
 }
 
-// Error handling
+// Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
   process.exit(1);
 });
 
-process.on('unhandledRejection', (reason) => {
-  console.error('Unhandled Rejection:', reason);
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
   process.exit(1);
 });
 
 // Start the server
-startServer();
+if (require.main === module) {
+  startServer().catch(error => {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  });
+}
+
+module.exports = { app, startServer };

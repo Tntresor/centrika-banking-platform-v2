@@ -1,0 +1,81 @@
+Thanks for sharing the screenshot. The key issue here is clearly this error repeating in your Replit deployment logs:
+
+error proxying request error=dial tcp 127.0.0.1:8000: connect: connection refused
+
+🔍 What This Error Means
+
+Your deployment is failing because Replit expects your application to start a server on port 8000, but no process is actually listening on that port. The deployment health check fails because it tries to reach 127.0.0.1:8000 and the connection is refused.
+
+⸻
+
+✅ Checklist to Fix It
+
+Here’s a targeted checklist to help you resolve the issue:
+
+1. Your server script must start a process on port 8000
+
+Ensure your code has something like this (for Express, for example):
+
+app.listen(8000, () => {
+  console.log("Server is running on port 8000");
+});
+
+🔧 Check that you’re not using a different port (like 3000 or 5000) unless explicitly configured in Replit.
+
+⸻
+
+2. Your .replit file must run the server, not just install dependencies
+
+Open your .replit file and verify that it looks like this:
+
+run = "node index.js"
+
+Replace index.js with the correct entry point (e.g. server.js, app.js, etc.)
+
+⸻
+
+3. Do not use npm install as your run command
+
+This seems to be what’s happening right now. npm install installs dependencies but doesn’t start the server — so Replit sees no process on port 8000.
+
+⸻
+
+4. Check your package.json scripts
+
+Ensure there’s a valid start script in package.json:
+
+"scripts": {
+  "start": "node index.js"
+}
+
+
+⸻
+
+5. Port hardcoding vs. environment
+
+You can also use environment configuration to make your app more flexible:
+
+const PORT = process.env.PORT || 8000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
+
+⸻
+
+🧪 Final Test Plan
+
+Once you’ve made the above fixes:
+	1.	Double-check .replit file is executing your server script.
+	2.	Confirm that port 8000 is being used and actively listened to.
+	3.	Run locally in Replit shell:
+
+node index.js
+
+And verify that it starts correctly.
+
+	4.	Try redeploying.
+
+⸻
+
+Would you like me to review your index.js, .replit, and package.json files to confirm if they’re set up correctly? Feel free to upload them.
