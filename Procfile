@@ -1,1 +1,1 @@
-web: cd server && node start.js
+web: cd server && node simple-server.js

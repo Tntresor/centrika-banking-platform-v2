@@ -6,7 +6,7 @@ const cors = require('cors');
 const { Client } = require('pg');
 
 const app = express();
-const PORT = process.env.PORT || 8001;
+const PORT = process.env.PORT || 8000;
 const HOST = process.env.HOST || '0.0.0.0';
 
 // Enhanced environment configuration for deployment
@@ -31,6 +31,16 @@ async function connectDB() {
   try {
     dbClient = new Client(databaseConfig);
     await dbClient.connect();
+    
+    // Handle connection errors during runtime
+    dbClient.on('error', (error) => {
+      console.error('Database connection error:', error.message);
+      if (error.code === '57P01') {
+        console.log('Database connection terminated, will reconnect if needed');
+        dbClient = null;
+      }
+    });
+    
     console.log('✅ Connected to Supabase database');
     return true;
   } catch (error) {
@@ -360,21 +370,45 @@ app.use('*', (req, res) => {
   });
 });
 
-// Graceful shutdown handling
+// Enhanced graceful shutdown handling
 process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully');
-  if (dbClient) {
-    await dbClient.end();
+  try {
+    if (dbClient) {
+      await dbClient.end();
+      console.log('Database connection closed');
+    }
+  } catch (error) {
+    console.error('Error during shutdown:', error);
   }
   process.exit(0);
 });
 
 process.on('SIGINT', async () => {
   console.log('SIGINT received, shutting down gracefully');
-  if (dbClient) {
-    await dbClient.end();
+  try {
+    if (dbClient) {
+      await dbClient.end();
+      console.log('Database connection closed');
+    }
+  } catch (error) {
+    console.error('Error during shutdown:', error);
   }
   process.exit(0);
+});
+
+// Handle database connection errors
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught exception:', error);
+  if (error.code === '57P01') {
+    console.log('Database connection terminated by administrator, continuing with limited functionality');
+  } else {
+    process.exit(1);
+  }
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled rejection at:', promise, 'reason:', reason);
 });
 
 // Start server with enhanced error handling

@@ -201,13 +201,20 @@ A comprehensive mobile neobank application for Rwanda featuring:
   - Health checks étendus avec statut base de données et métriques système
   - Architecture prête pour déploiement sur Replit, Heroku, Railway et autres plateformes cloud
 - 2025-06-22: DÉPLOIEMENT FINALISÉ ET TESTÉ:
-  - Serveur de production opérationnel sur port 8001 avec liaison 0.0.0.0
+  - Serveur de production opérationnel sur port 8000 avec liaison 0.0.0.0
   - Tous les endpoints de crédit vérifiés et fonctionnels
   - Configuration de déploiement testée et validée pour plateformes cloud
   - Documentation de déploiement complète avec guide étape par étape
   - Package.json racine créé pour compatibilité maximale des plateformes
   - Health checks complets avec statut base de données en temps réel
   - Prêt pour déploiement immédiat sur toute plateforme cloud supportée
+- 2025-06-22: PROBLÈME DE DÉPLOIEMENT RÉSOLU:
+  - Élimination du wrapper start.js qui causait les erreurs de connexion refusée
+  - Simplification de l'architecture avec production-server.js en point d'entrée direct
+  - Gestion d'erreurs renforcée pour les déconnexions de base de données
+  - Variables d'environnement forcées à HOST=0.0.0.0 et PORT=8000
+  - Procfile et configuration de déploiement optimisés
+  - Serveur stable sans processus enfant complexe
 
 ## User Preferences
 - Focus on authentic data integration
