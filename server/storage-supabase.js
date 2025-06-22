@@ -1,4 +1,4 @@
-const { Client } = require('pg');
+const { Pool } = require('pg');
 
 if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL must be set. Did you forget to provision a database?');
@@ -6,77 +6,39 @@ if (!process.env.DATABASE_URL) {
 
 class DatabaseStorage {
   constructor() {
-    this.client = null;
+    this.pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+      max: 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 5000,
+    });
     this.connected = false;
   }
 
   async connect() {
-    if (!this.connected || !this.client) {
+    if (!this.connected) {
       try {
-        // Close existing connection if any
-        if (this.client) {
-          try {
-            await this.client.end();
-          } catch (e) {
-            // Ignore close errors
-          }
-        }
-        
-        this.client = new Client({
-          connectionString: process.env.DATABASE_URL,
-          ssl: { rejectUnauthorized: false },
-          connectionTimeoutMillis: 5000,
-          idleTimeoutMillis: 20000,
-          query_timeout: 5000
-        });
-        
-        // Handle connection errors
-        this.client.on('error', (err) => {
-          console.error('Database connection error:', err.message);
-          this.connected = false;
-          this.client = null;
-        });
-        
-        this.client.on('end', () => {
-          console.log('Database connection ended');
-          this.connected = false;
-          this.client = null;
-        });
-        
-        await this.client.connect();
+        await this.pool.query('SELECT 1');
         this.connected = true;
         console.log('Connected to Supabase database');
       } catch (error) {
         console.error('Failed to connect to database:', error.message);
         this.connected = false;
-        this.client = null;
         throw error;
       }
     }
   }
 
   async executeQuery(query, params = []) {
-    let retries = 3;
-    while (retries > 0) {
-      try {
-        await this.connect();
-        if (!this.client || !this.connected) {
-          throw new Error('Database not connected');
-        }
-        return await this.client.query(query, params);
-      } catch (error) {
-        console.error(`Database query error (${retries} retries left):`, error.message);
-        this.connected = false;
-        this.client = null;
-        retries--;
-        
-        if (retries === 0) {
-          throw error;
-        }
-        
-        // Wait before retry
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
+    try {
+      
+      const result = await this.pool.query(query, params);
+      return result;
+    } catch (error) {
+      console.error('Query failed:', error.message);
+      this.connected = false;
+      throw error;
     }
   }
 
@@ -125,7 +87,7 @@ class DatabaseStorage {
   }
 
   async updateUser(id, updates) {
-    await this.connect();
+    
     try {
       const fields = [];
       const values = [];
@@ -152,7 +114,7 @@ class DatabaseStorage {
       values.push(id);
 
       const query = `UPDATE users SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING *`;
-      const result = await this.client.query(query, values);
+      const result = await this.executeQuery(query, values);
       return result.rows[0];
     } catch (error) {
       console.error('Database error in updateUser:', error);
@@ -162,9 +124,9 @@ class DatabaseStorage {
 
   // Wallet operations
   async getWallet(userId) {
-    await this.connect();
+    
     try {
-      const result = await this.client.query('SELECT * FROM wallets WHERE user_id = $1', [userId]);
+      const result = await this.executeQuery('SELECT * FROM wallets WHERE user_id = $1', [userId]);
       return result.rows[0] || undefined;
     } catch (error) {
       console.error('Database error in getWallet:', error);
@@ -173,9 +135,8 @@ class DatabaseStorage {
   }
 
   async createWallet(insertWallet) {
-    await this.connect();
     try {
-      const result = await this.client.query(
+      const result = await this.executeQuery(
         `INSERT INTO wallets (user_id, balance, currency, kyc_level, is_active)
          VALUES ($1, $2, $3, $4, $5) RETURNING *`,
         [
@@ -194,9 +155,9 @@ class DatabaseStorage {
   }
 
   async updateWalletBalance(walletId, amount) {
-    await this.connect();
+    
     try {
-      const result = await this.client.query(
+      const result = await this.executeQuery(
         'UPDATE wallets SET balance = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
         [amount, walletId]
       );
@@ -209,9 +170,9 @@ class DatabaseStorage {
 
   // Transaction operations
   async createTransaction(insertTransaction) {
-    await this.connect();
+    
     try {
-      const result = await this.client.query(
+      const result = await this.executeQuery(
         `INSERT INTO transactions (from_wallet_id, to_wallet_id, amount, currency, type, status, reference, description)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
         [
@@ -233,9 +194,9 @@ class DatabaseStorage {
   }
 
   async getTransactions(walletId, limit = 50) {
-    await this.connect();
+    
     try {
-      const result = await this.client.query(
+      const result = await this.executeQuery(
         'SELECT * FROM transactions WHERE from_wallet_id = $1 OR to_wallet_id = $1 ORDER BY created_at DESC LIMIT $2',
         [walletId, limit]
       );
@@ -247,9 +208,9 @@ class DatabaseStorage {
   }
 
   async getTransaction(id) {
-    await this.connect();
+    
     try {
-      const result = await this.client.query('SELECT * FROM transactions WHERE id = $1', [id]);
+      const result = await this.executeQuery('SELECT * FROM transactions WHERE id = $1', [id]);
       return result.rows[0] || undefined;
     } catch (error) {
       console.error('Database error in getTransaction:', error);
@@ -258,7 +219,7 @@ class DatabaseStorage {
   }
 
   async updateTransaction(id, updates) {
-    await this.connect();
+    
     try {
       const fields = [];
       const values = [];
@@ -278,7 +239,7 @@ class DatabaseStorage {
       values.push(id);
 
       const query = `UPDATE transactions SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING *`;
-      const result = await this.client.query(query, values);
+      const result = await this.executeQuery(query, values);
       return result.rows[0];
     } catch (error) {
       console.error('Database error in updateTransaction:', error);
