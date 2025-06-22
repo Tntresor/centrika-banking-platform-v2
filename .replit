@@ -42,8 +42,8 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd backoffice && npm run dev"
-waitForPort = 3000
+args = "cd backoffice && npm run dev -- --port 3001"
+waitForPort = 3001
 
 [[workflows.workflow]]
 name = "Mobile Banking App"
@@ -60,8 +60,8 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd server && node simple-server.js"
-waitForPort = 8002
+args = "cd server && node production-server.js"
+waitForPort = 5000
 
 [deployment]
 run = ["sh", "-c", "cd server && npm install && cd ../mobile && npm install && cd ../backoffice && npm install"]
@@ -70,6 +70,10 @@ deploymentTarget = "cloudrun"
 [[ports]]
 localPort = 3000
 externalPort = 3000
+
+[[ports]]
+localPort = 3001
+externalPort = 8008
 
 [[ports]]
 localPort = 5000
