@@ -4,6 +4,7 @@ const { Client } = require('pg');
 
 const app = express();
 const PORT = process.env.PORT || 8000;
+const HOST = process.env.HOST || '0.0.0.0';
 
 // Environment variables
 process.env.NODE_ENV = 'production';
@@ -285,10 +286,21 @@ async function startServer() {
   
   const dbConnected = await connectDB();
   
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`✅ Server running on http://0.0.0.0:${PORT}`);
+  app.listen(PORT, HOST, () => {
+    console.log(`✅ Server running on http://${HOST}:${PORT}`);
     console.log(`Database: ${dbConnected ? 'Connected' : 'Disconnected'}`);
-    console.log(`Health check: http://0.0.0.0:${PORT}/health`);
+    console.log(`Health check: http://${HOST}:${PORT}/health`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`Available endpoints:`);
+    console.log(`  - GET  ${HOST}:${PORT}/`);
+    console.log(`  - GET  ${HOST}:${PORT}/health`);
+    console.log(`  - POST ${HOST}:${PORT}/api/auth/register`);
+    console.log(`  - POST ${HOST}:${PORT}/api/auth/login`);
+    console.log(`  - GET  ${HOST}:${PORT}/api/credit/health`);
+    console.log(`  - GET  ${HOST}:${PORT}/api/credit/config`);
+    console.log(`  - POST ${HOST}:${PORT}/api/credit/overdraft`);
+    console.log(`  - POST ${HOST}:${PORT}/api/credit/credit`);
+    console.log(`  - GET  ${HOST}:${PORT}/api/credit/facilities`);
   });
 }
 

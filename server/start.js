@@ -18,6 +18,7 @@ process.chdir(serverDir);
 console.log(`Working directory: ${process.cwd()}`);
 console.log(`Node version: ${process.version}`);
 console.log(`Environment: ${process.env.NODE_ENV}`);
+console.log(`Host: ${process.env.HOST || '0.0.0.0'}`);
 console.log(`Port: ${process.env.PORT || 8000}`);
 
 // Start the server
@@ -27,6 +28,7 @@ const serverProcess = spawn('node', ['simple-server.js'], {
   env: {
     ...process.env,
     NODE_ENV: 'production',
+    HOST: process.env.HOST || '0.0.0.0',
     PORT: process.env.PORT || '8000'
   }
 });
