@@ -131,6 +131,12 @@ A comprehensive mobile neobank application for Rwanda featuring:
   - Enhanced error handling and logging in mobile interface
   - User registration and login now working seamlessly through web interface
   - Simplified architecture: Single server deployment serving both API and mobile interface
+- 2025-06-22: DATABASE CONFIGURATION UPDATED:
+  - Updated database URL to user's specific Supabase instance
+  - Connection string: postgresql://postgres:Xentrika2025!@db.tzwzmzakxgatyvhvngez.supabase.co:5432/postgres
+  - Created .env file with proper database credentials
+  - All database operations verified working with new connection
+  - Account creation and authentication functioning correctly
 
 ## User Preferences
 - Focus on authentic data integration

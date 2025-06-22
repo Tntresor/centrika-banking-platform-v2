@@ -5,7 +5,7 @@ const { Client } = require('pg');
 const app = express();
 
 // Environment variables
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres.tzwzmzakxgatyvhvngez:Xentrika2025!@aws-0-eu-west-3.pooler.supabase.com:6543/postgres';
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:Xentrika2025!@db.tzwzmzakxgatyvhvngez.supabase.co:5432/postgres';
 const JWT_SECRET = process.env.JWT_SECRET || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6d3ptemFreGdhdHl2aHZuZ2V6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAzODUwOTAsImV4cCI6MjA2NTk2MTA5MH0.623RCZAPWUGJlQgsfYRXS3E6riACjb2MLJACOZ2gHPc';
 
 // Database client
