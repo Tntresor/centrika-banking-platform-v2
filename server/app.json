@@ -1,0 +1,39 @@
+{
+  "name": "centrika-neobank-api",
+  "description": "Centrika Neobank Banking API Server",
+  "keywords": ["banking", "fintech", "rwanda", "api"],
+  "website": "https://centrika.rw",
+  "repository": "https://github.com/centrika/neobank",
+  "logo": "https://centrika.rw/logo.png",
+  "success_url": "/health",
+  "scripts": {
+    "postdeploy": "echo 'Deployment successful. Health check available at /health'"
+  },
+  "env": {
+    "NODE_ENV": {
+      "description": "Node.js environment",
+      "value": "production"
+    },
+    "DATABASE_URL": {
+      "description": "PostgreSQL database connection string",
+      "required": true
+    },
+    "JWT_SECRET": {
+      "description": "JWT signing secret",
+      "required": true
+    }
+  },
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "standard-1x"
+    }
+  },
+  "buildpacks": [
+    {
+      "url": "heroku/nodejs"
+    }
+  ],
+  "addons": [],
+  "stack": "heroku-22"
+}

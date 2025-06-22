@@ -1,1 +1,1 @@
-web: node server/simple-server.js
+web: cd server && node start.js
