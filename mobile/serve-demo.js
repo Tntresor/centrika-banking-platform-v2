@@ -41,8 +41,13 @@ const server = http.createServer((req, res) => {
       features: ['User Registration', 'Login', 'P2P Transfers', 'Live Supabase Data']
     }));
   } else {
-    res.writeHead(404);
-    res.end('Not Found');
+    res.writeHead(404, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: false,
+      message: "Endpoint not found",
+      availableEndpoints: ["/", "/status"],
+      requestedUrl: req.url
+    }));
   }
 });
 
