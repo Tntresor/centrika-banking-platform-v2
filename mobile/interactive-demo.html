@@ -538,7 +538,7 @@
 
     <script>
         let currentUser = null;
-        const API_BASE = 'http://localhost:8000/api';
+        const API_BASE = '/api';
         
         // Navigation functions
         function showScreen(screenId) {
@@ -605,13 +605,21 @@
             }
             
             try {
+                console.log('Attempting registration for:', { firstName, lastName, phone });
                 const response = await fetch(`${API_BASE}/auth/register`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ firstName, lastName, phone, password })
                 });
                 
+                console.log('Registration response status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
                 const data = await response.json();
+                console.log('Registration response data:', data);
                 
                 if (data.success) {
                     showMessage('registerMessage', 'Account created successfully!', 'success');
@@ -623,7 +631,8 @@
                     showMessage('registerMessage', data.message || 'Registration failed', 'error');
                 }
             } catch (error) {
-                showMessage('registerMessage', 'Network error. Please try again.', 'error');
+                console.error('Registration error:', error);
+                showMessage('registerMessage', `Network error: ${error.message}`, 'error');
             }
         }
         

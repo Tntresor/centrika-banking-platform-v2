@@ -25,9 +25,9 @@ class DatabaseStorage {
         this.client = new Client({
           connectionString: process.env.DATABASE_URL,
           ssl: { rejectUnauthorized: false },
-          connectionTimeoutMillis: 10000,
-          idleTimeoutMillis: 30000,
-          query_timeout: 10000
+          connectionTimeoutMillis: 5000,
+          idleTimeoutMillis: 20000,
+          query_timeout: 5000
         });
         
         // Handle connection errors

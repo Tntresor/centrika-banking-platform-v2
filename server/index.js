@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const path = require('path');
 require('dotenv').config();
 
 // Add at the very top after requires
@@ -105,8 +106,10 @@ app.get('/health', (req, res) => {
 // Security middleware
 app.use(helmet());
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000', 'http://localhost:5000'],
+  origin: true, // Allow all origins for development
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // Rate limiting
@@ -137,6 +140,12 @@ if (adminLiveRoutes) {
   app.use('/api/admin', adminLiveRoutes);
   app.use('/api/auth/admin', adminLiveRoutes);
 }
+
+// Serve mobile banking interface
+app.use('/mobile', express.static('mobile'));
+app.get('/mobile', (req, res) => {
+  res.sendFile(path.join(__dirname, '../mobile/interactive-demo.html'));
+});
 
 // Error handling middleware
 app.use((err, req, res, next) => {
