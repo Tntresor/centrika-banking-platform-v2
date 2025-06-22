@@ -11,22 +11,79 @@ class DatabaseStorage {
   }
 
   async connect() {
-    if (!this.connected) {
-      this.client = new Client({
-        connectionString: process.env.DATABASE_URL,
-        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-      });
-      await this.client.connect();
-      this.connected = true;
-      console.log('Connected to Supabase database');
+    if (!this.connected || !this.client) {
+      try {
+        // Close existing connection if any
+        if (this.client) {
+          try {
+            await this.client.end();
+          } catch (e) {
+            // Ignore close errors
+          }
+        }
+        
+        this.client = new Client({
+          connectionString: process.env.DATABASE_URL,
+          ssl: { rejectUnauthorized: false },
+          connectionTimeoutMillis: 10000,
+          idleTimeoutMillis: 30000,
+          query_timeout: 10000
+        });
+        
+        // Handle connection errors
+        this.client.on('error', (err) => {
+          console.error('Database connection error:', err.message);
+          this.connected = false;
+          this.client = null;
+        });
+        
+        this.client.on('end', () => {
+          console.log('Database connection ended');
+          this.connected = false;
+          this.client = null;
+        });
+        
+        await this.client.connect();
+        this.connected = true;
+        console.log('Connected to Supabase database');
+      } catch (error) {
+        console.error('Failed to connect to database:', error.message);
+        this.connected = false;
+        this.client = null;
+        throw error;
+      }
+    }
+  }
+
+  async executeQuery(query, params = []) {
+    let retries = 3;
+    while (retries > 0) {
+      try {
+        await this.connect();
+        if (!this.client || !this.connected) {
+          throw new Error('Database not connected');
+        }
+        return await this.client.query(query, params);
+      } catch (error) {
+        console.error(`Database query error (${retries} retries left):`, error.message);
+        this.connected = false;
+        this.client = null;
+        retries--;
+        
+        if (retries === 0) {
+          throw error;
+        }
+        
+        // Wait before retry
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
     }
   }
 
   // User operations
   async getUser(id) {
-    await this.connect();
     try {
-      const result = await this.client.query('SELECT * FROM users WHERE id = $1', [id]);
+      const result = await this.executeQuery('SELECT * FROM users WHERE id = $1', [id]);
       return result.rows[0] || undefined;
     } catch (error) {
       console.error('Database error in getUser:', error);
@@ -35,9 +92,8 @@ class DatabaseStorage {
   }
 
   async getUserByPhone(phone) {
-    await this.connect();
     try {
-      const result = await this.client.query('SELECT * FROM users WHERE phone = $1', [phone]);
+      const result = await this.executeQuery('SELECT * FROM users WHERE phone = $1', [phone]);
       return result.rows[0] || undefined;
     } catch (error) {
       console.error('Database error in getUserByPhone:', error);
@@ -46,9 +102,8 @@ class DatabaseStorage {
   }
 
   async createUser(insertUser) {
-    await this.connect();
     try {
-      const result = await this.client.query(
+      const result = await this.executeQuery(
         `INSERT INTO users (phone, first_name, last_name, email, password_hash, kyc_status, is_active, preferred_language)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
         [
