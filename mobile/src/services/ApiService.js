@@ -3,7 +3,7 @@ import Constants from 'expo-constants';
 class ApiService {
   constructor() {
     // Use environment variable or fallback to localhost for development
-    this.baseURL = Constants.expoConfig?.extra?.apiUrl || 'http://localhost:8000/api';
+    this.baseURL = Constants.expoConfig?.extra?.apiUrl || 'https://centrika-banking-platform-v2.onrender.com/api';
   }
 
   async request(endpoint, options = {}) {

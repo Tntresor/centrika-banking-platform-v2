@@ -10,7 +10,7 @@ import type {
 } from '../../shared/types';
 
 class APIService {
-  private baseURL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000/api';
+  private baseURL = process.env.EXPO_PUBLIC_API_URL || 'https://centrika-banking-platform-v2.onrender.com/api';
 
   constructor() {
     // Dynamic API URL detection for different environments

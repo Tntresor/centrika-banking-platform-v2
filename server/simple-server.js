@@ -344,6 +344,172 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+// =================== NEW TRANSACTION ENDPOINTS ===================
+
+// Get wallet information
+app.get('/api/transactions/wallet', async (req, res) => {
+  try {
+    // Mock wallet data for now - in production, get from JWT token
+    const walletData = {
+      balance: 50000,
+      currency: 'RWF',
+      accountNumber: '1234567890',
+      transactions: [
+        {
+          id: 1,
+          type: 'credit',
+          amount: 25000,
+          description: 'Salary deposit',
+          date: new Date().toISOString(),
+          status: 'completed'
+        },
+        {
+          id: 2,
+          type: 'debit',
+          amount: 5000,
+          description: 'ATM withdrawal',
+          date: new Date(Date.now() - 86400000).toISOString(),
+          status: 'completed'
+        }
+      ]
+    };
+
+    console.log('Wallet data requested');
+    res.json(walletData);
+  } catch (error) {
+    console.error('Wallet error:', error);
+    res.status(500).json({ error: 'Failed to get wallet data' });
+  }
+});
+
+// P2P Transfer
+app.post('/api/transactions/p2p', async (req, res) => {
+  try {
+    const { recipientPhone, amount, description } = req.body;
+    console.log('P2P transfer attempt:', { recipientPhone, amount, description });
+
+    // Mock transfer logic
+    const transfer = {
+      id: Math.floor(Math.random() * 10000),
+      from: 'user_phone', // Should come from auth
+      to: recipientPhone,
+      amount: amount,
+      description: description || 'P2P Transfer',
+      status: 'completed',
+      timestamp: new Date().toISOString(),
+      reference: `TXN${Date.now()}`
+    };
+
+    console.log('Transfer completed:', transfer);
+    res.json({
+      success: true,
+      message: 'Transfer completed successfully',
+      transaction: transfer
+    });
+  } catch (error) {
+    console.error('Transfer error:', error);
+    res.status(500).json({ error: 'Transfer failed' });
+  }
+});
+
+// Get transaction history
+app.get('/api/transactions/history', async (req, res) => {
+  try {
+    const transactions = [
+      {
+        id: 1,
+        type: 'credit',
+        amount: 25000,
+        description: 'Salary deposit',
+        date: new Date().toISOString(),
+        status: 'completed'
+      },
+      {
+        id: 2,
+        type: 'debit',
+        amount: 5000,
+        description: 'ATM withdrawal',
+        date: new Date(Date.now() - 86400000).toISOString(),
+        status: 'completed'
+      },
+      {
+        id: 3,
+        type: 'debit',
+        amount: 2000,
+        description: 'P2P Transfer to John',
+        date: new Date(Date.now() - 172800000).toISOString(),
+        status: 'completed'
+      }
+    ];
+
+    console.log('Transaction history requested');
+    res.json(transactions);
+  } catch (error) {
+    console.error('Transaction history error:', error);
+    res.status(500).json({ error: 'Failed to get transaction history' });
+  }
+});
+
+// Mobile Money deposit
+app.post('/api/momo/deposit', async (req, res) => {
+  try {
+    const { userId, amount, phoneNumber } = req.body;
+
+    console.log('MoMo deposit attempt:', { userId, amount, phoneNumber });
+
+    const transaction = {
+      id: Math.floor(Math.random() * 10000),
+      userId: userId,
+      amount: amount,
+      phoneNumber: phoneNumber,
+      type: 'deposit',
+      status: 'completed',
+      reference: `MOMO_DEP_${Date.now()}`,
+      timestamp: new Date().toISOString()
+    };
+
+    res.json({
+      success: true,
+      message: 'Deposit successful',
+      transaction: transaction
+    });
+  } catch (error) {
+    console.error('MoMo deposit error:', error);
+    res.status(500).json({ error: 'Deposit failed' });
+  }
+});
+
+// Mobile Money withdrawal
+app.post('/api/momo/withdraw', async (req, res) => {
+  try {
+    const { userId, amount, phoneNumber } = req.body;
+
+    console.log('MoMo withdrawal attempt:', { userId, amount, phoneNumber });
+
+    const transaction = {
+      id: Math.floor(Math.random() * 10000),
+      userId: userId,
+      amount: amount,
+      phoneNumber: phoneNumber,
+      type: 'withdrawal',
+      status: 'completed',
+      reference: `MOMO_WD_${Date.now()}`,
+      timestamp: new Date().toISOString()
+    };
+
+    res.json({
+      success: true,
+      message: 'Withdrawal successful',
+      transaction: transaction
+    });
+  } catch (error) {
+    console.error('MoMo withdrawal error:', error);
+    res.status(500).json({ error: 'Withdrawal failed' });
+  }
+});
+
+// =================== END NEW TRANSACTION ENDPOINTS ===================
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
@@ -384,6 +550,11 @@ async function startServer() {
     console.log(`  - POST /api/auth/login`);
     console.log(`  - POST /api/admin/login`);
     console.log(`  - GET  /api/admin/metrics`);
+    console.log(`  - GET  /api/transactions/wallet`);
+    console.log(`  - POST /api/transactions/p2p`);
+    console.log(`  - GET  /api/transactions/history`);
+    console.log(`  - POST /api/momo/deposit`);
+    console.log(`  - POST /api/momo/withdraw`);
   });
 
   // Connect to database
