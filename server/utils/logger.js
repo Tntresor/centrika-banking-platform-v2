@@ -1,86 +1,89 @@
-const fs = require('fs');
+const winston = require('winston');
 const path = require('path');
 
-// Log levels
-const LogLevel = {
-  ERROR: 0,
-  WARN: 1,
-  INFO: 2,
-  DEBUG: 3
-};
-
 class Logger {
-  constructor(context = 'App', level = LogLevel.INFO) {
+  constructor(context = 'App') {
     this.context = context;
-    this.level = level;
-    this.logDir = path.join(process.cwd(), 'logs');
     
     // Ensure logs directory exists
-    if (!fs.existsSync(this.logDir)) {
-      fs.mkdirSync(this.logDir, { recursive: true });
+    const logsDir = path.join(process.cwd(), 'logs');
+    
+    this.logger = winston.createLogger({
+      level: process.env.LOG_LEVEL || 'info',
+      format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.errors({ stack: true }),
+        winston.format.json(),
+        winston.format.printf(({ timestamp, level, message, context, ...meta }) => {
+          const logObj = {
+            timestamp,
+            level,
+            context: context || this.context,
+            message,
+            ...meta
+          };
+          return JSON.stringify(logObj);
+        })
+      ),
+      defaultMeta: { service: 'centrika-api', context: this.context },
+      transports: [
+        new winston.transports.File({ 
+          filename: path.join(logsDir, 'error.log'), 
+          level: 'error',
+          maxsize: 5242880, // 5MB
+          maxFiles: 5
+        }),
+        new winston.transports.File({ 
+          filename: path.join(logsDir, 'combined.log'),
+          maxsize: 5242880, // 5MB
+          maxFiles: 5
+        })
+      ]
+    });
+
+    // Add console transport for non-production environments
+    if (process.env.NODE_ENV !== 'production') {
+      this.logger.add(new winston.transports.Console({
+        format: winston.format.combine(
+          winston.format.colorize(),
+          winston.format.simple(),
+          winston.format.printf(({ timestamp, level, message, context, ...meta }) => {
+            const metaStr = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : '';
+            return `${timestamp} ${level} [${context || this.context}]: ${message}${metaStr}`;
+          })
+        )
+      }));
     }
-  }
-
-  _formatMessage(level, message, meta = {}) {
-    return {
-      timestamp: new Date().toISOString(),
-      level: Object.keys(LogLevel)[level],
-      context: this.context,
-      message,
-      meta,
-      pid: process.pid
-    };
-  }
-
-  _writeLog(level, message, meta = {}) {
-    if (level > this.level) return;
-
-    const logEntry = this._formatMessage(level, message, meta);
-    const logString = JSON.stringify(logEntry);
-
-    // Console output with colors
-    const colors = {
-      [LogLevel.ERROR]: '\x1b[31m',  // Red
-      [LogLevel.WARN]: '\x1b[33m',   // Yellow
-      [LogLevel.INFO]: '\x1b[36m',   // Cyan
-      [LogLevel.DEBUG]: '\x1b[37m'   // White
-    };
-    
-    const reset = '\x1b[0m';
-    const color = colors[level] || reset;
-    
-    console.log(`${color}[${logEntry.timestamp}] ${logEntry.level} [${this.context}]: ${message}${reset}`);
-    
-    if (meta && Object.keys(meta).length > 0) {
-      console.log(`${color}Meta:${reset}`, meta);
-    }
-
-    // File output
-    const logFileName = `${new Date().toISOString().split('T')[0]}.log`;
-    const logFilePath = path.join(this.logDir, logFileName);
-    
-    try {
-      fs.appendFileSync(logFilePath, logString + '\n');
-    } catch (error) {
-      console.error('Failed to write log to file:', error);
-    }
-  }
-
-  error(message, meta = {}) {
-    this._writeLog(LogLevel.ERROR, message, meta);
-  }
-
-  warn(message, meta = {}) {
-    this._writeLog(LogLevel.WARN, message, meta);
   }
 
   info(message, meta = {}) {
-    this._writeLog(LogLevel.INFO, message, meta);
+    this.logger.info(message, { ...meta, context: this.context });
+  }
+
+  warn(message, meta = {}) {
+    this.logger.warn(message, { ...meta, context: this.context });
+  }
+
+  error(message, meta = {}) {
+    this.logger.error(message, { ...meta, context: this.context });
   }
 
   debug(message, meta = {}) {
-    this._writeLog(LogLevel.DEBUG, message, meta);
+    this.logger.debug(message, { ...meta, context: this.context });
+  }
+
+  // Create child logger with additional context
+  child(additionalContext) {
+    const childLogger = new Logger(`${this.context}:${additionalContext}`);
+    return childLogger;
   }
 }
+
+const LogLevel = {
+  ERROR: 'error',
+  WARN: 'warn', 
+  INFO: 'info',
+  DEBUG: 'debug'
+};
 
 module.exports = { Logger, LogLevel };

@@ -1,0 +1,681 @@
+// services/service-factory.js
+const { Pool } = require('pg');
+const { getEncryptionService } = require('./encryption-service');
+const { UserService } = require('./user-service');
+const { StorageService } = require('../utils/storage');
+const { AuditService } = require('./audit-service');
+const { CONFIG, validateConfig } = require('../config');
+const { Logger } = require('../utils/logger');
+
+class ServiceFactory {
+  constructor() {
+    this.logger = new Logger('ServiceFactory');
+    this.services = new Map();
+    this.initialized = false;
+  }
+
+  async initialize() {
+    if (this.initialized) {
+      return;
+    }
+
+    try {
+      // Validate configuration
+      validateConfig();
+
+      // Initialize database pool
+      this.dbPool = new Pool({
+        connectionString: CONFIG.database.url,
+        ssl: CONFIG.database.ssl ? { rejectUnauthorized: false } : false,
+        min: CONFIG.database.pool.min,
+        max: CONFIG.database.pool.max,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000
+      });
+
+      // Test database connection
+      await this.dbPool.query('SELECT NOW()');
+      this.logger.info('Database connection established');
+
+      // Initialize services in dependency order
+      await this._initializeServices();
+
+      this.initialized = true;
+      this.logger.info('ServiceFactory initialized successfully');
+
+    } catch (error) {
+      this.logger.error('ServiceFactory initialization failed', { error: error.message });
+      throw error;
+    }
+  }
+
+  async _initializeServices() {
+    // 1. Initialize encryption service
+    const encryptionService = getEncryptionService({
+      encryptionKey: CONFIG.encryption.key
+    });
+    this.services.set('encryption', encryptionService);
+
+    // 2. Initialize storage service
+    const storageService = new StorageService(this.dbPool, encryptionService);
+    this.services.set('storage', storageService);
+
+    // 3. Initialize audit service
+    const auditService = new AuditService(storageService);
+    this.services.set('audit', auditService);
+
+    // 4. Initialize user service
+    const userService = new UserService(
+      storageService,
+      encryptionService,
+      auditService
+    );
+    this.services.set('user', userService);
+
+    this.logger.info('All services initialized');
+  }
+
+  getService(name) {
+    if (!this.initialized) {
+      throw new Error('ServiceFactory not initialized. Call initialize() first.');
+    }
+
+    const service = this.services.get(name);
+    if (!service) {
+      throw new Error(`Service '${name}' not found`);
+    }
+
+    return service;
+  }
+
+  async shutdown() {
+    try {
+      this.logger.info('Shutting down services...');
+
+      // Close database pool
+      if (this.dbPool) {
+        await this.dbPool.end();
+        this.logger.info('Database pool closed');
+      }
+
+      // Clear services
+      this.services.clear();
+      this.initialized = false;
+
+      this.logger.info('ServiceFactory shutdown complete');
+    } catch (error) {
+      this.logger.error('Error during shutdown', { error: error.message });
+    }
+  }
+
+  // Health check for all services
+  async healthCheck() {
+    const results = {
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      services: {}
+    };
+
+    try {
+      // Database health
+      const dbStart = Date.now();
+      await this.dbPool.query('SELECT 1');
+      results.services.database = {
+        status: 'healthy',
+        responseTime: Date.now() - dbStart
+      };
+
+      // Encryption service health
+      const encryptionService = this.getService('encryption');
+      const testData = 'health-check';
+      const encrypted = encryptionService.encrypt(testData);
+      const decrypted = encryptionService.decrypt(encrypted);
+      
+      results.services.encryption = {
+        status: decrypted === testData ? 'healthy' : 'unhealthy',
+        responseTime: 1 // Very fast operation
+      };
+
+    } catch (error) {
+      results.status = 'unhealthy';
+      results.error = error.message;
+    }
+
+    return results;
+  }
+}
+
+// Singleton instance
+let serviceFactory = null;
+
+function getServiceFactory() {
+  if (!serviceFactory) {
+    serviceFactory = new ServiceFactory();
+  }
+  return serviceFactory;
+}
+
+// Enhanced Audit Service
+class AuditService {
+  constructor(storageService) {
+    this.storage = storageService;
+    this.logger = new Logger('AuditService');
+  }
+
+  async log(action, userId, eventData = {}, client = null) {
+    try {
+      const auditEntry = {
+        user_id: userId,
+        action,
+        event_data: eventData,
+        correlation_id: eventData.correlationId || null,
+        ip_address: eventData.clientInfo?.ip || null,
+        user_agent: eventData.clientInfo?.userAgent || null,
+        session_id: eventData.sessionId || null,
+        created_at: new Date()
+      };
+
+      const query = `
+        INSERT INTO audit_logs (
+          user_id, action, event_data, correlation_id, 
+          ip_address, user_agent, session_id, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING id
+      `;
+
+      const values = [
+        auditEntry.user_id,
+        auditEntry.action,
+        JSON.stringify(auditEntry.event_data),
+        auditEntry.correlation_id,
+        auditEntry.ip_address,
+        auditEntry.user_agent,
+        auditEntry.session_id,
+        auditEntry.created_at
+      ];
+
+      const executor = client || this.storage.pool;
+      const result = await executor.query(query, values);
+
+      this.logger.debug('Audit log created', {
+        auditId: result.rows[0].id,
+        action,
+        userId,
+        correlationId: auditEntry.correlation_id
+      });
+
+      return result.rows[0].id;
+
+    } catch (error) {
+      this.logger.error('Failed to create audit log', {
+        action,
+        userId,
+        error: error.message
+      });
+      // Don't throw - audit logging shouldn't break main operations
+    }
+  }
+
+  async getAuditTrail(userId, options = {}) {
+    try {
+      const {
+        limit = 50,
+        offset = 0,
+        action = null,
+        startDate = null,
+        endDate = null
+      } = options;
+
+      let query = `
+        SELECT 
+          id, action, event_data, ip_address, 
+          user_agent, created_at, correlation_id
+        FROM audit_logs 
+        WHERE user_id = $1
+      `;
+
+      const params = [userId];
+      let paramIndex = 2;
+
+      if (action) {
+        query += ` AND action = $${paramIndex}`;
+        params.push(action);
+        paramIndex++;
+      }
+
+      if (startDate) {
+        query += ` AND created_at >= $${paramIndex}`;
+        params.push(startDate);
+        paramIndex++;
+      }
+
+      if (endDate) {
+        query += ` AND created_at <= $${paramIndex}`;
+        params.push(endDate);
+        paramIndex++;
+      }
+
+      query += ` ORDER BY created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+      params.push(limit, offset);
+
+      const result = await this.storage.pool.query(query, params);
+      return result.rows;
+
+    } catch (error) {
+      this.logger.error('Failed to get audit trail', {
+        userId,
+        error: error.message
+      });
+      throw error;
+    }
+  }
+}
+
+// Audit action constants
+const auditActions = {
+  USER_CREATED: 'USER_CREATED',
+  USER_LOGIN: 'USER_LOGIN',
+  USER_LOGOUT: 'USER_LOGOUT',
+  PASSWORD_CHANGED: 'PASSWORD_CHANGED',
+  PROFILE_UPDATED: 'PROFILE_UPDATED',
+  WALLET_CREATED: 'WALLET_CREATED',
+  TRANSACTION_INITIATED: 'TRANSACTION_INITIATED',
+  TRANSACTION_COMPLETED: 'TRANSACTION_COMPLETED',
+  TRANSACTION_FAILED: 'TRANSACTION_FAILED',
+  KYC_SUBMITTED: 'KYC_SUBMITTED',
+  KYC_APPROVED: 'KYC_APPROVED',
+  KYC_REJECTED: 'KYC_REJECTED',
+  SECURITY_VIOLATION: 'SECURITY_VIOLATION',
+  ACCOUNT_LOCKED: 'ACCOUNT_LOCKED',
+  ACCOUNT_UNLOCKED: 'ACCOUNT_UNLOCKED',
+  SESSION_CREATED: 'SESSION_CREATED',
+  SESSION_EXPIRED: 'SESSION_EXPIRED'
+};
+
+// Express middleware factory
+class MiddlewareFactory {
+  constructor(serviceFactory) {
+    this.serviceFactory = serviceFactory;
+    this.logger = new Logger('MiddlewareFactory');
+  }
+
+  // Error handling middleware
+  errorHandler() {
+    return (error, req, res, next) => {
+      const correlationId = req.correlationId || 'unknown';
+      
+      this.logger.error('Request error', {
+        correlationId,
+        error: error.message,
+        stack: error.stack,
+        url: req.url,
+        method: req.method,
+        userAgent: req.get('User-Agent'),
+        ip: req.ip
+      });
+
+      // Handle different error types
+      if (error.name === 'AppError') {
+        return res.status(this._getHttpStatusFromErrorCode(error.code)).json({
+          success: false,
+          error: {
+            code: error.code,
+            message: error.message,
+            correlationId
+          }
+        });
+      }
+
+      // Handle validation errors
+      if (error.name === 'ValidationError') {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid input data',
+            details: error.details,
+            correlationId
+          }
+        });
+      }
+
+      // Generic server error
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'An unexpected error occurred',
+          correlationId
+        }
+      });
+    };
+  }
+
+  // Request correlation ID middleware
+  correlationId() {
+    return (req, res, next) => {
+      req.correlationId = req.get('X-Correlation-ID') || 
+                         require('crypto').randomUUID();
+      res.set('X-Correlation-ID', req.correlationId);
+      next();
+    };
+  }
+
+  // Request logging middleware
+  requestLogger() {
+    return (req, res, next) => {
+      const start = Date.now();
+      
+      res.on('finish', () => {
+        const duration = Date.now() - start;
+        
+        this.logger.info('Request completed', {
+          correlationId: req.correlationId,
+          method: req.method,
+          url: req.url,
+          statusCode: res.statusCode,
+          duration,
+          userAgent: req.get('User-Agent'),
+          ip: req.ip,
+          userId: req.user?.id || null
+        });
+      });
+      
+      next();
+    };
+  }
+
+  // Authentication middleware
+  authenticate() {
+    return async (req, res, next) => {
+      try {
+        const token = this._extractToken(req);
+        
+        if (!token) {
+          return res.status(401).json({
+            success: false,
+            error: {
+              code: 'UNAUTHORIZED',
+              message: 'Authentication token required'
+            }
+          });
+        }
+
+        // Verify token and get user
+        const sessionService = this.serviceFactory.getService('session');
+        const session = await sessionService.validateToken(token);
+        
+        if (!session) {
+          return res.status(401).json({
+            success: false,
+            error: {
+              code: 'UNAUTHORIZED',
+              message: 'Invalid or expired token'
+            }
+          });
+        }
+
+        req.user = session.user;
+        req.sessionId = session.id;
+        next();
+
+      } catch (error) {
+        next(error);
+      }
+    };
+  }
+
+  // Client info extraction middleware
+  clientInfo() {
+    return (req, res, next) => {
+      req.clientInfo = {
+        ip: req.ip || req.connection.remoteAddress,
+        userAgent: req.get('User-Agent'),
+        acceptLanguage: req.get('Accept-Language'),
+        correlationId: req.correlationId
+      };
+      next();
+    };
+  }
+
+  // Rate limiting middleware
+  rateLimit(action) {
+    return async (req, res, next) => {
+      try {
+        const rateLimiter = this.serviceFactory.getService('rateLimiter');
+        const identifier = req.ip;
+        
+        const isAllowed = await rateLimiter.check(action, identifier);
+        
+        if (!isAllowed) {
+          return res.status(429).json({
+            success: false,
+            error: {
+              code: 'RATE_LIMIT_EXCEEDED',
+              message: 'Too many requests. Please try again later.'
+            }
+          });
+        }
+        
+        next();
+      } catch (error) {
+        next(error);
+      }
+    };
+  }
+
+  _extractToken(req) {
+    const authHeader = req.get('Authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      return authHeader.substring(7);
+    }
+    return req.cookies?.token || null;
+  }
+
+  _getHttpStatusFromErrorCode(errorCode) {
+    const statusMap = {
+      'VALIDATION_ERROR': 400,
+      'UNAUTHORIZED': 401,
+      'ACCOUNT_LOCKED': 401,
+      'INVALID_CREDENTIALS': 401,
+      'USER_NOT_FOUND': 404,
+      'USER_EXISTS': 409,
+      'RATE_LIMIT_EXCEEDED': 429,
+      'DATABASE_ERROR': 500,
+      'CRYPTO_ERROR': 500,
+      'CONFIG_ERROR': 500,
+      'EXTERNAL_SERVICE_ERROR': 502
+    };
+    return statusMap[errorCode] || 500;
+  }
+}
+
+// API Controller Factory
+class ControllerFactory {
+  constructor(serviceFactory) {
+    this.serviceFactory = serviceFactory;
+    this.logger = new Logger('ControllerFactory');
+  }
+
+  createUserController() {
+    const userService = this.serviceFactory.getService('user');
+    
+    return {
+      register: async (req, res, next) => {
+        try {
+          const userData = req.body;
+          const result = await userService.createUser(userData, req.clientInfo);
+          
+          res.status(201).json({
+            success: true,
+            data: result,
+            message: 'User created successfully'
+          });
+        } catch (error) {
+          next(error);
+        }
+      },
+
+      login: async (req, res, next) => {
+        try {
+          const { phone, password } = req.body;
+          const user = await userService.authenticateUser(phone, password, req.clientInfo);
+          
+          if (!user) {
+            return res.status(401).json({
+              success: false,
+              error: {
+                code: 'INVALID_CREDENTIALS',
+                message: 'Invalid phone number or password'
+              }
+            });
+          }
+
+          // Create session
+          const sessionService = this.serviceFactory.getService('session');
+          const session = await sessionService.createSession(user.id, req.clientInfo);
+
+          res.json({
+            success: true,
+            data: {
+              user,
+              token: session.token,
+              expiresAt: session.expiresAt
+            },
+            message: 'Login successful'
+          });
+        } catch (error) {
+          next(error);
+        }
+      },
+
+      changePassword: async (req, res, next) => {
+        try {
+          const { currentPassword, newPassword } = req.body;
+          const userId = req.user.id;
+          
+          await userService.changePassword(userId, currentPassword, newPassword, req.clientInfo);
+          
+          res.json({
+            success: true,
+            message: 'Password changed successfully'
+          });
+        } catch (error) {
+          next(error);
+        }
+      },
+
+      profile: async (req, res, next) => {
+        try {
+          res.json({
+            success: true,
+            data: req.user
+          });
+        } catch (error) {
+          next(error);
+        }
+      }
+    };
+  }
+}
+
+// Application factory
+class AppFactory {
+  constructor() {
+    this.serviceFactory = getServiceFactory();
+    this.middlewareFactory = new MiddlewareFactory(this.serviceFactory);
+    this.controllerFactory = new ControllerFactory(this.serviceFactory);
+    this.logger = new Logger('AppFactory');
+  }
+
+  async createApp() {
+    const express = require('express');
+    const cors = require('cors');
+    const helmet = require('helmet');
+    const compression = require('compression');
+
+    // Initialize services
+    await this.serviceFactory.initialize();
+
+    const app = express();
+
+    // Security middleware
+    app.use(helmet());
+    app.use(cors({
+      origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
+      credentials: true
+    }));
+
+    // Basic middleware
+    app.use(compression());
+    app.use(express.json({ limit: '10mb' }));
+    app.use(express.urlencoded({ extended: true }));
+
+    // Custom middleware
+    app.use(this.middlewareFactory.correlationId());
+    app.use(this.middlewareFactory.clientInfo());
+    app.use(this.middlewareFactory.requestLogger());
+
+    // Routes
+    this._setupRoutes(app);
+
+    // Error handling
+    app.use(this.middlewareFactory.errorHandler());
+
+    return app;
+  }
+
+  _setupRoutes(app) {
+    const userController = this.controllerFactory.createUserController();
+
+    // Health check
+    app.get('/health', async (req, res) => {
+      const health = await this.serviceFactory.healthCheck();
+      res.status(health.status === 'healthy' ? 200 : 503).json(health);
+    });
+
+    // Auth routes
+    app.post('/api/auth/register', 
+      this.middlewareFactory.rateLimit('user_creation'),
+      userController.register
+    );
+
+    app.post('/api/auth/login',
+      this.middlewareFactory.rateLimit('login_attempt'),
+      userController.login
+    );
+
+    // Protected routes
+    app.use('/api/user', this.middlewareFactory.authenticate());
+    app.get('/api/user/profile', userController.profile);
+    app.put('/api/user/password',
+      this.middlewareFactory.rateLimit('password_change'),
+      userController.changePassword
+    );
+
+    // 404 handler
+    app.use('*', (req, res) => {
+      res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Route not found'
+        }
+      });
+    });
+  }
+
+  async shutdown() {
+    await this.serviceFactory.shutdown();
+  }
+}
+
+module.exports = {
+  ServiceFactory,
+  getServiceFactory,
+  AuditService,
+  auditActions,
+  MiddlewareFactory,
+  ControllerFactory,
+  AppFactory
+};

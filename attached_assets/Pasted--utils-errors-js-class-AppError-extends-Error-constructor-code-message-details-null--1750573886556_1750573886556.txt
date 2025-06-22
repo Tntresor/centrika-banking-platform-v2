@@ -1,0 +1,375 @@
+// utils/errors.js
+class AppError extends Error {
+  constructor(code, message, details = null) {
+    super(message);
+    this.name = 'AppError';
+    this.code = code;
+    this.details = details;
+    this.timestamp = new Date().toISOString();
+    
+    Error.captureStackTrace(this, this.constructor);
+  }
+
+  toJSON() {
+    return {
+      name: this.name,
+      code: this.code,
+      message: this.message,
+      details: this.details,
+      timestamp: this.timestamp
+    };
+  }
+}
+
+const ErrorCodes = {
+  // Validation errors
+  VALIDATION_ERROR: 'VALIDATION_ERROR',
+  
+  // Authentication/Authorization errors
+  INVALID_CREDENTIALS: 'INVALID_CREDENTIALS',
+  ACCOUNT_LOCKED: 'ACCOUNT_LOCKED',
+  UNAUTHORIZED: 'UNAUTHORIZED',
+  
+  // User management errors
+  USER_NOT_FOUND: 'USER_NOT_FOUND',
+  USER_EXISTS: 'USER_EXISTS',
+  
+  // Security errors
+  RATE_LIMIT_EXCEEDED: 'RATE_LIMIT_EXCEEDED',
+  CRYPTO_ERROR: 'CRYPTO_ERROR',
+  SECURITY_VIOLATION: 'SECURITY_VIOLATION',
+  
+  // System errors
+  DATABASE_ERROR: 'DATABASE_ERROR',
+  CONFIG_ERROR: 'CONFIG_ERROR',
+  EXTERNAL_SERVICE_ERROR: 'EXTERNAL_SERVICE_ERROR'
+};
+
+// utils/logger.js
+const winston = require('winston');
+
+class Logger {
+  constructor(context = 'App') {
+    this.context = context;
+    this.logger = winston.createLogger({
+      level: process.env.LOG_LEVEL || 'info',
+      format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.errors({ stack: true }),
+        winston.format.json()
+      ),
+      defaultMeta: { service: 'centrika-api', context },
+      transports: [
+        new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
+        new winston.transports.File({ filename: 'logs/combined.log' })
+      ]
+    });
+
+    if (process.env.NODE_ENV !== 'production') {
+      this.logger.add(new winston.transports.Console({
+        format: winston.format.simple()
+      }));
+    }
+  }
+
+  info(message, meta = {}) {
+    this.logger.info(message, { ...meta, context: this.context });
+  }
+
+  warn(message, meta = {}) {
+    this.logger.warn(message, { ...meta, context: this.context });
+  }
+
+  error(message, meta = {}) {
+    this.logger.error(message, { ...meta, context: this.context });
+  }
+
+  debug(message, meta = {}) {
+    this.logger.debug(message, { ...meta, context: this.context });
+  }
+}
+
+// utils/rate-limiter.js
+const Redis = require('ioredis');
+
+class RateLimiter {
+  constructor() {
+    this.redis = new Redis(process.env.REDIS_URL);
+    this.limits = {
+      user_creation: { requests: 5, window: 3600 }, // 5 per hour
+      login_attempt: { requests: 10, window: 900 }, // 10 per 15 min
+      password_change: { requests: 3, window: 3600 } // 3 per hour
+    };
+  }
+
+  async check(action, identifier) {
+    const limit = this.limits[action];
+    if (!limit) return true;
+
+    const key = `rate_limit:${action}:${identifier}`;
+    const current = await this.redis.incr(key);
+    
+    if (current === 1) {
+      await this.redis.expire(key, limit.window);
+    }
+    
+    return current <= limit.requests;
+  }
+
+  async reset(action, identifier) {
+    const key = `rate_limit:${action}:${identifier}`;
+    await this.redis.del(key);
+  }
+}
+
+// utils/security.js
+const validator = require('validator');
+
+function validatePassword(password) {
+  if (!password || typeof password !== 'string') return false;
+  
+  // At least 8 characters
+  if (password.length < 8) return false;
+  
+  // Contains uppercase letter
+  if (!/[A-Z]/.test(password)) return false;
+  
+  // Contains lowercase letter
+  if (!/[a-z]/.test(password)) return false;
+  
+  // Contains number
+  if (!/\d/.test(password)) return false;
+  
+  // Contains special character
+  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) return false;
+  
+  // No common patterns
+  const commonPatterns = [
+    /123456/,
+    /password/i,
+    /qwerty/i,
+    /abc123/i
+  ];
+  
+  return !commonPatterns.some(pattern => pattern.test(password));
+}
+
+function sanitizePhone(phone) {
+  if (!phone) return null;
+  
+  // Remove all non-digit characters except +
+  let cleaned = phone.replace(/[^\d+]/g, '');
+  
+  // Ensure it starts with +
+  if (!cleaned.startsWith('+')) {
+    // Assume Rwanda country code if no + prefix
+    cleaned = '+250' + cleaned;
+  }
+  
+  return cleaned;
+}
+
+function validateEmail(email) {
+  return validator.isEmail(email);
+}
+
+function sanitizeString(str, maxLength = 255) {
+  if (!str) return null;
+  return validator.escape(str.trim()).substring(0, maxLength);
+}
+
+// config/index.js
+const CONFIG = {
+  security: {
+    bcrypt: {
+      rounds: process.env.NODE_ENV === 'production' ? 12 : 10
+    },
+    pbkdf2: {
+      iterations: parseInt(process.env.PBKDF2_ITERATIONS) || 100000
+    },
+    maxLoginAttempts: parseInt(process.env.MAX_LOGIN_ATTEMPTS) || 5,
+    lockoutDuration: parseInt(process.env.LOCKOUT_DURATION) || 900000, // 15 minutes
+    session: {
+      secret: process.env.SESSION_SECRET,
+      maxAge: parseInt(process.env.SESSION_MAX_AGE) || 3600000 // 1 hour
+    }
+  },
+  wallet: {
+    defaultBalance: process.env.DEFAULT_WALLET_BALANCE || '1000.00',
+    currency: process.env.DEFAULT_CURRENCY || 'RWF'
+  },
+  database: {
+    url: process.env.DATABASE_URL,
+    ssl: process.env.NODE_ENV === 'production',
+    pool: {
+      min: parseInt(process.env.DB_POOL_MIN) || 2,
+      max: parseInt(process.env.DB_POOL_MAX) || 10
+    }
+  },
+  redis: {
+    url: process.env.REDIS_URL
+  },
+  encryption: {
+    key: process.env.ENCRYPTION_KEY
+  },
+  app: {
+    port: parseInt(process.env.PORT) || 3000,
+    env: process.env.NODE_ENV || 'development'
+  }
+};
+
+// Validate required config
+function validateConfig() {
+  const required = [
+    'DATABASE_URL',
+    'REDIS_URL',
+    'SESSION_SECRET'
+  ];
+  
+  if (CONFIG.app.env === 'production') {
+    required.push('ENCRYPTION_KEY');
+  }
+  
+  const missing = required.filter(key => !process.env[key]);
+  
+  if (missing.length > 0) {
+    throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+  }
+}
+
+// Enhanced storage interface with proper error handling
+class StorageService {
+  constructor(pool, encryptionService) {
+    this.pool = pool;
+    this.encryption = encryptionService;
+    this.logger = new Logger('StorageService');
+  }
+
+  async executeTransaction(callback) {
+    const client = await this.pool.connect();
+    
+    try {
+      await client.query('BEGIN');
+      const result = await callback(client);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      this.logger.error('Transaction failed', { error: error.message });
+      throw new AppError(ErrorCodes.DATABASE_ERROR, 'Transaction failed', error);
+    } finally {
+      client.release();
+    }
+  }
+
+  async getUserByPhone(phone) {
+    try {
+      const phoneHash = this.encryption.hash(phone).hash;
+      const result = await this.pool.query(
+        'SELECT * FROM users WHERE phone_hash = $1 AND is_active = true',
+        [phoneHash]
+      );
+      
+      if (result.rows.length === 0) return null;
+      
+      const user = result.rows[0];
+      
+      // Decrypt sensitive fields
+      if (user.phone_encrypted) {
+        user.phone = this.encryption.decrypt(JSON.parse(user.phone_encrypted));
+      }
+      if (user.email_encrypted) {
+        user.email = this.encryption.decrypt(JSON.parse(user.email_encrypted));
+      }
+      
+      return user;
+    } catch (error) {
+      this.logger.error('Failed to get user by phone', { error: error.message });
+      throw new AppError(ErrorCodes.DATABASE_ERROR, 'Failed to retrieve user', error);
+    }
+  }
+
+  async getUserByEmail(email) {
+    try {
+      const emailHash = this.encryption.hash(email).hash;
+      const result = await this.pool.query(
+        'SELECT * FROM users WHERE email_hash = $1 AND is_active = true',
+        [emailHash]
+      );
+      
+      return result.rows.length > 0 ? result.rows[0] : null;
+    } catch (error) {
+      this.logger.error('Failed to get user by email', { error: error.message });
+      throw new AppError(ErrorCodes.DATABASE_ERROR, 'Failed to retrieve user', error);
+    }
+  }
+
+  async getAccountLockout(phoneHash) {
+    try {
+      const result = await this.pool.query(
+        'SELECT * FROM account_lockouts WHERE phone_hash = $1',
+        [phoneHash]
+      );
+      
+      return result.rows.length > 0 ? result.rows[0] : null;
+    } catch (error) {
+      this.logger.error('Failed to get lockout info', { error: error.message });
+      return null;
+    }
+  }
+
+  async recordFailedLogin(phone) {
+    try {
+      const phoneHash = this.encryption.hash(phone).hash;
+      
+      await this.pool.query(`
+        INSERT INTO failed_logins (phone_hash, attempt_time, ip_address)
+        VALUES ($1, NOW(), $2)
+        ON CONFLICT (phone_hash) 
+        DO UPDATE SET 
+          attempts = failed_logins.attempts + 1,
+          last_attempt = NOW()
+      `, [phoneHash, '']); // IP would come from clientInfo
+      
+      // Check if we need to lock account
+      const result = await this.pool.query(
+        'SELECT attempts FROM failed_logins WHERE phone_hash = $1',
+        [phoneHash]
+      );
+      
+      if (result.rows[0]?.attempts >= CONFIG.security.maxLoginAttempts) {
+        await this.pool.query(`
+          INSERT INTO account_lockouts (phone_hash, locked_until)
+          VALUES ($1, NOW() + INTERVAL '${CONFIG.security.lockoutDuration} milliseconds')
+          ON CONFLICT (phone_hash)
+          DO UPDATE SET locked_until = NOW() + INTERVAL '${CONFIG.security.lockoutDuration} milliseconds'
+        `, [phoneHash]);
+      }
+    } catch (error) {
+      this.logger.error('Failed to record failed login', { error: error.message });
+    }
+  }
+
+  async clearFailedLogins(phoneHash) {
+    try {
+      await this.pool.query('DELETE FROM failed_logins WHERE phone_hash = $1', [phoneHash]);
+      await this.pool.query('DELETE FROM account_lockouts WHERE phone_hash = $1', [phoneHash]);
+    } catch (error) {
+      this.logger.error('Failed to clear failed logins', { error: error.message });
+    }
+  }
+}
+
+module.exports = {
+  AppError,
+  ErrorCodes,
+  Logger,
+  RateLimiter,
+  validatePassword,
+  sanitizePhone,
+  validateEmail,
+  sanitizeString,
+  CONFIG,
+  validateConfig,
+  StorageService
+};
