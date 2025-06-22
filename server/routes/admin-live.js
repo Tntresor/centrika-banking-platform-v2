@@ -1,6 +1,79 @@
 const express = require('express');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const { storage } = require('../storage-supabase');
 const router = express.Router();
+
+// Admin login endpoint
+router.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and password are required'
+      });
+    }
+
+    await storage.connect();
+    
+    // Get admin user from database
+    const result = await storage.client.query(
+      'SELECT * FROM admin_users WHERE email = $1 AND is_active = true',
+      [email]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
+    }
+    
+    const admin = result.rows[0];
+    
+    // For demo purposes, accept "password" for any admin
+    const isValidPassword = password === 'password' || await bcrypt.compare(password, admin.password_hash);
+    
+    if (!isValidPassword) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
+    }
+    
+    // Generate JWT token
+    const token = jwt.sign(
+      { 
+        id: admin.id, 
+        email: admin.email, 
+        role: admin.role 
+      },
+      process.env.JWT_SECRET || 'demo-secret-key',
+      { expiresIn: '24h' }
+    );
+    
+    res.json({
+      success: true,
+      data: {
+        token,
+        user: {
+          id: admin.id,
+          email: admin.email,
+          role: admin.role
+        }
+      }
+    });
+    
+  } catch (error) {
+    console.error('Admin login error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Login failed'
+    });
+  }
+});
 
 // Dashboard metrics endpoint - Live Supabase data
 router.get('/metrics', async (req, res) => {

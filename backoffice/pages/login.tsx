@@ -39,15 +39,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      // Temporary demo login - bypass authentication for demonstration
-      if (email && password) {
-        const mockToken = 'demo.admin.token.centrika.backoffice.2025';
-        setAuthToken(mockToken);
-        router.push('/');
-        return;
-      }
-
-      const response = await fetch('/api/auth/admin/login', {
+      const response = await fetch('/api/admin/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -61,7 +53,7 @@ export default function Login() {
         setAuthToken(data.data.token);
         router.push('/');
       } else {
-        setError(data.error || 'Login failed');
+        setError(data.message || 'Login failed');
       }
     } catch (err) {
       setError('Network error. Please check your connection.');

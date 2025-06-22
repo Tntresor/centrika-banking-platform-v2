@@ -77,6 +77,9 @@ app.use('/api/cards', cardRoutes);
 app.use('/api/momo', momoRoutes);
 app.use('/api/admin', adminLiveRoutes);
 
+// Admin auth routes (separate from regular auth)
+app.use('/api/auth/admin', adminLiveRoutes);
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Error:', err);
