@@ -3,24 +3,22 @@ const Joi = require('joi');
 const { AppError, ErrorCodes } = require('../utils/errors');
 const { Logger } = require('../utils/logger');
 const { RateLimiter } = require('../utils/rate-limiter');
-const { storage } = require('../storage-supabase');
 const { auditLog, auditActions } = require('./audit-service');
-const { validatePassword, sanitizePhone, validateEmail, sanitizeForLog } = require('../utils/security');
-const { encryptionService } = require('./encryption-service');
+const { validatePassword, sanitizePhone, validateEmail } = require('../utils/security');
 const { CONFIG } = require('../config');
 
 // Validation schemas
 const createUserSchema = Joi.object({
   firstName: Joi.string().trim().min(2).max(50).required(),
   lastName: Joi.string().trim().min(2).max(50).required(),
-  phone: Joi.string().pattern(/^\+?[0-9]{10,15}$/).required(),
+  phone: Joi.string().pattern(/^\+?[1-9]\d{1,14}$/).required(),
   email: Joi.string().email().optional(),
   password: Joi.string().min(8).required(),
   preferredLanguage: Joi.string().valid('en', 'rw', 'fr').default('en')
 });
 
 const authSchema = Joi.object({
-  phone: Joi.string().pattern(/^\+?[0-9]{10,15}$/).required(),
+  phone: Joi.string().pattern(/^\+?[1-9]\d{1,14}$/).required(),
   password: Joi.string().required()
 });
 
@@ -30,9 +28,10 @@ const changePasswordSchema = Joi.object({
 });
 
 class UserService {
-  constructor() {
+  constructor(storage, encryptionService, auditService) {
     this.storage = storage;
     this.encryption = encryptionService;
+    this.audit = auditService;
     this.logger = new Logger('UserService');
     this.rateLimiter = new RateLimiter();
     
@@ -44,7 +43,7 @@ class UserService {
       lockoutDuration: CONFIG.security.lockoutDuration
     };
   }
-  
+
   /**
    * Create a new user with validation and security checks
    * @param {Object} userData - User registration data
@@ -229,7 +228,7 @@ class UserService {
   async _checkUserExists(phone, email) {
     const [existingPhone, existingEmail] = await Promise.all([
       this.storage.getUserByPhone(phone),
-      email ? this.storage.getUserByEmail && this.storage.getUserByEmail(email) : null
+      email ? this.storage.getUserByEmail(email) : null
     ]);
 
     if (existingPhone) {
@@ -245,18 +244,25 @@ class UserService {
     // Hash password
     const hashedPassword = await bcrypt.hash(userData.password, this.config.saltRounds);
 
+    // Encrypt sensitive data
+    const encryptedPhone = this.encryption.encrypt(userData.phone);
+    const encryptedEmail = this.encryption.encrypt(userData.email);
+
     // Create user record
     const userResult = await client.query(
       `INSERT INTO users (
-        first_name, last_name, phone, email, password_hash, kyc_status, 
+        first_name, last_name, phone_encrypted, phone_hash, 
+        email_encrypted, email_hash, password_hash, kyc_status, 
         is_active, preferred_language, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW()) 
-      RETURNING id, first_name, last_name, phone, email, kyc_status, preferred_language, created_at`,
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW()) 
+      RETURNING id, first_name, last_name, kyc_status, preferred_language, created_at`,
       [
         userData.firstName,
         userData.lastName,
-        userData.phone,
-        userData.email,
+        JSON.stringify(encryptedPhone),
+        this.encryption.hash(userData.phone).hash,
+        JSON.stringify(encryptedEmail),
+        this.encryption.hash(userData.email).hash,
         hashedPassword,
         'pending',
         true,
@@ -274,7 +280,7 @@ class UserService {
     );
 
     // Audit log
-    await auditLog(auditActions.USER_CREATED, user.id, {
+    await this.audit.log(auditActions.USER_CREATED, user.id, {
       phone: userData.phone,
       email: userData.email,
       clientInfo,
@@ -286,8 +292,8 @@ class UserService {
         id: user.id,
         firstName: user.first_name,
         lastName: user.last_name,
-        phone: user.phone,
-        email: user.email,
+        phone: userData.phone,
+        email: userData.email,
         kycStatus: user.kyc_status,
         preferredLanguage: user.preferred_language,
         createdAt: user.created_at
@@ -308,18 +314,16 @@ class UserService {
   }
 
   async _checkAccountLockout(phone) {
-    // Check if account is locked due to failed login attempts
-    // This would be implemented with a failed_logins table
-    // For now, we'll simulate basic lockout logic
-    const lockoutKey = `lockout:${phone}`;
-    // Implementation would check database for failed attempts
+    const lockoutInfo = await this.storage.getAccountLockout(phone);
+    if (lockoutInfo && lockoutInfo.locked_until > new Date()) {
+      throw new AppError(ErrorCodes.ACCOUNT_LOCKED, 'Account temporarily locked due to failed login attempts');
+    }
   }
 
   async _handleFailedLogin(userId, reason, phone, clientInfo, correlationId) {
     await Promise.all([
-      // Record failed login attempt (would implement with database)
-      // this.storage.recordFailedLogin(phone),
-      auditLog(auditActions.SECURITY_VIOLATION, userId, {
+      this.storage.recordFailedLogin(phone),
+      this.audit.log(auditActions.SECURITY_VIOLATION, userId, {
         action: `login_attempt_${reason}`,
         phone,
         clientInfo,
@@ -330,9 +334,8 @@ class UserService {
 
   async _handleSuccessfulLogin(user, clientInfo, correlationId) {
     await Promise.all([
-      // Clear failed login attempts (would implement with database)
-      // this.storage.clearFailedLogins(user.phone),
-      auditLog(auditActions.USER_LOGIN, user.id, {
+      this.storage.clearFailedLogins(user.phone_hash),
+      this.audit.log(auditActions.USER_LOGIN, user.id, {
         clientInfo,
         correlationId
       })
@@ -351,7 +354,7 @@ class UserService {
     // Verify current password
     const isValidPassword = await this._verifyPassword(currentPassword, user.password_hash);
     if (!isValidPassword) {
-      await auditLog(auditActions.SECURITY_VIOLATION, userId, {
+      await this.audit.log(auditActions.SECURITY_VIOLATION, userId, {
         action: 'password_change_invalid_current',
         clientInfo,
         correlationId
@@ -369,7 +372,7 @@ class UserService {
     );
 
     // Audit log
-    await auditLog(auditActions.PASSWORD_CHANGED, userId, {
+    await this.audit.log(auditActions.PASSWORD_CHANGED, userId, {
       clientInfo,
       correlationId
     }, client);
@@ -382,8 +385,8 @@ class UserService {
       id: user.id,
       firstName: user.first_name,
       lastName: user.last_name,
-      phone: user.phone,
-      email: user.email,
+      phone: user.phone, // Will be decrypted by storage layer
+      email: user.email, // Will be decrypted by storage layer
       kycStatus: user.kyc_status,
       preferredLanguage: user.preferred_language
     };
@@ -394,9 +397,9 @@ class UserService {
   }
 
   _sanitizeUserDataForLog(userData) {
-    return sanitizeForLog(userData);
+    const { password, ...sanitized } = userData;
+    return sanitized;
   }
 }
 
-const userService = new UserService();
-module.exports = { UserService, userService };
+module.exports = { UserService };

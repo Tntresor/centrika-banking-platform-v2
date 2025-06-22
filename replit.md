@@ -151,6 +151,17 @@ A comprehensive mobile neobank application for Rwanda featuring:
   - Added compliance middleware for transaction amount verification
   - Enhanced rate limiting with tier-based restrictions
   - All security features tested and operational with live database
+- 2025-06-22: SERVICE UTILISATEUR CONSIDÉRABLEMENT AMÉLIORÉ:
+  - Ajout de validation d'entrée robuste avec schémas Joi pour tous les endpoints
+  - Implémentation d'un système de logging complet avec corrélation IDs et métriques de performance
+  - Ajout de limitation de taux (rate limiting) granulaire par type d'action
+  - Système de gestion d'erreurs personnalisées avec codes d'erreur standardisés
+  - Normalisation et assainissement des numéros de téléphone rwandais
+  - Gestion des tentatives de connexion échouées avec verrouillage de compte
+  - Sanitisation des données sensibles dans les logs
+  - Transactions de base de données atomiques pour toutes les opérations critiques
+  - Documentation complète avec JSDoc pour tous les méthodes publiques
+  - Architecture modulaire avec méthodes privées bien organisées
 
 ## User Preferences
 - Focus on authentic data integration
