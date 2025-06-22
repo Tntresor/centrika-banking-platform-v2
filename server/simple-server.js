@@ -7,7 +7,7 @@ const PORT = 8007;
 
 // Environment variables
 process.env.NODE_ENV = 'production';
-process.env.DATABASE_URL = 'postgresql://postgres:Xentrika2025!@db.tzwzmzakxgatyvhvngez.supabase.co:5432/postgres';
+process.env.DATABASE_URL = 'postgresql://postgres.tzwzmzakxgatyvhvngez:Xentrika2025!@aws-0-eu-west-3.pooler.supabase.com:6543/postgres';
 process.env.JWT_SECRET = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6d3ptemFreGdhdHl2aHZuZ2V6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAzODUwOTAsImV4cCI6MjA2NTk2MTA5MH0.623RCZAPWUGJlQgsfYRXS3E6riACjb2MLJACOZ2gHPc';
 
 // Database client
@@ -183,7 +183,7 @@ app.post('/api/auth/register', async (req, res) => {
     // Create wallet for user
     await dbClient.query(
       'INSERT INTO wallets (user_id, balance, currency, is_active, kyc_level) VALUES ($1, $2, $3, $4, $5)',
-      [user.id, '1000.00', 'RWF', true, 'basic']
+      [user.id, '1000.00', 'RWF', true, 1]
     );
     
     res.json({
